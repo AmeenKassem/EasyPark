@@ -1,36 +1,31 @@
 package com.example.demo.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import com.example.demo.model.Role;
+public class UserSummary {
 
-public class RegisterRequest {
-
-    @NotBlank
+    private Long id;
     private String fullName;
-
-    @Email
-    @NotBlank
     private String email;
-
-    @NotBlank
     private String phone;
+    private String role;
 
-    @NotBlank
-    private String password;
-    private Role role;
-
-    public RegisterRequest() {
+    public UserSummary() {
     }
 
-    public RegisterRequest(String fullName, String email, String phone, Role role, String password) {
+    public UserSummary(Long id, String fullName, String email, String phone, String role) {
+        this.id = id;
         this.fullName = fullName;
         this.email = email;
         this.phone = phone;
         this.role = role;
-        this.password = password;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     public String getFullName() {
         return fullName;
@@ -56,19 +51,11 @@ public class RegisterRequest {
         this.phone = phone;
     }
 
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-    public Role getRole() {
+    public String getRole() {
         return role;
     }
 
-    public void setRole(Role role) {
+    public void setRole(String role) {
         this.role = role;
     }
-
 }

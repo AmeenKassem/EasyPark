@@ -3,6 +3,7 @@ package com.example.demo.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import com.example.demo.model.Role;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -19,28 +20,37 @@ public class User {
 
     @Email
     @NotBlank
+    @Column(nullable = false)
     private String email;
 
     @NotBlank
     private String phone;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
 
     @NotBlank
-    private String passwordHash; // we'll hash later
+    @Column(nullable = false)
+    private String passwordHash; // for now we store the password here (plain) for demo
 
     public User() {
     }
 
-    public User(String fullName, String email, String phone, String passwordHash) {
+    public User(String fullName, String email, String phone, Role role, String passwordHash) {
         this.fullName = fullName;
         this.email = email;
         this.phone = phone;
+        this.role = role;
         this.passwordHash = passwordHash;
     }
 
-    // getters + setters
 
     public Long getId() {
         return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getFullName() {
@@ -74,4 +84,12 @@ public class User {
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
 }
