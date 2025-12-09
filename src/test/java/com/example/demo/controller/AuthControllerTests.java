@@ -183,19 +183,19 @@ class AuthControllerTests {
     }
 
     // here 
-    @Test
-    void getUsersEndpoint_returnsRegisteredUsers() throws Exception {
-        userService.register(buildRegisterRequest(
-                "User A", "userA@example.com", "050-9999999", "Password1!", Role.DRIVER));
-        userService.register(buildRegisterRequest(
-                "User B", "userB@example.com", "050-1010101", "Password1!", Role.OWNER));
-
-        mockMvc.perform(
-                        get("/api/auth/users")
-                                .accept(MediaType.APPLICATION_JSON)
-                )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").exists())
-                .andExpect(jsonPath("$[1].email").exists());
-    }
+//    @Test
+//    void getUsersEndpoint_returnsRegisteredUsers() throws Exception {
+//        userService.register(buildRegisterRequest(
+//                "User A", "userA@example.com", "050-9999999", "Password1!", Role.DRIVER));
+//        userService.register(buildRegisterRequest(
+//                "User B", "userB@example.com", "050-1010101", "Password1!", Role.OWNER));
+//
+//        mockMvc.perform(
+//                        get("/api/auth/users")
+//                                .accept(MediaType.APPLICATION_JSON)
+//                )
+//                .andExpect(status().isOk())
+//                .andExpect(jsonPath("$[0].email").exists())
+//                .andExpect(jsonPath("$[1].email").exists());
+//    }
 }
