@@ -2,7 +2,7 @@ name: Java CI
 
 on:
   push:
-    branches: [ "main" ]       # change if your default branch is different
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -20,6 +20,9 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
           cache: 'maven'
+
+      - name: Make mvnw executable
+        run: chmod +x mvnw
 
       - name: Run tests with Maven
         run: ./mvnw -B test
