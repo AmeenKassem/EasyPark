@@ -27,21 +27,23 @@ The system includes:
 
 ## Project Structure
 
+```
 src/
 ├── main/
-│ └── java/com/example/demo/
-│ ├── controller/ # REST controllers
-│ ├── dto/ # Request/response objects
-│ ├── model/ # Entities (User, Parking, Booking, Notification)
-│ ├── repository/ # JPA repositories
-│ ├── service/ # Business logic layer
-│ └── DemoApplication # Spring Boot entry point
+│   └── java/com/example/demo/
+│       ├── controller/        # REST controllers
+│       ├── dto/               # Request/response objects
+│       ├── model/             # Entities (User, Parking, Booking, Notification)
+│       ├── repository/        # JPA repositories
+│       ├── service/           # Business logic layer
+│       └── DemoApplication    # Spring Boot entry point
 │
 └── test/
-└── java/com/example/demo/
-├── controller/ # API integration tests
-├── service/ # Service-layer tests
-└── DemoApplicationTests
+    └── java/com/example/demo/
+        ├── controller/        # API integration tests
+        ├── service/           # Service-layer tests
+        └── DemoApplicationTests
+```
 
 ## Running the Application
 
