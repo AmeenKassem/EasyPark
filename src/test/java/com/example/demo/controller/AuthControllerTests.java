@@ -182,6 +182,7 @@ class AuthControllerTests {
                 .andExpect(jsonPath("$.error").value("User not found"));
     }
 
+    // here 
     @Test
     void getUsersEndpoint_returnsRegisteredUsers() throws Exception {
         userService.register(buildRegisterRequest(
