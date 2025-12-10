@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.AuthResponse;
+import com.example.demo.dto.ForgotPasswordRequest;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.dto.ResetPasswordRequest;
@@ -115,11 +116,42 @@ public class AuthController {
     // ============================
     // FORGOT / RESET PASSWORD
     // ============================
-    @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
-        String tempPassword = userService.resetPassword(request.getEmail());
+    // @PostMapping("/reset-password")
+    // public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+    //     String tempPassword = userService.resetPassword(request.getEmail());
 
-        // frontend expects: { "tempPassword": "123456" }
-        return ResponseEntity.ok(Map.of("tempPassword", tempPassword));
+    //     // frontend expects: { "tempPassword": "123456" }
+    //     return ResponseEntity.ok(Map.of("tempPassword", tempPassword));
+    // }
+
+    // ============================
+    // FORGOT PASSWORD - CREATE RESET TOKEN
+    // ============================
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        // This will create a new reset token for the given email and store it in the database.
+        // For development purposes we return the token in the response,
+        // later this should be sent by email instead.
+        String resetToken = userService.createPasswordResetToken(request.getEmail());
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "message", "If this email exists, a password reset token was generated",
+                        "resetToken", resetToken
+                ) // we return the token here only for testing purposes -- later it should be emailed
+        );
+    }
+
+    // ============================
+    // RESET PASSWORD USING TOKEN
+    // ============================
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        // This will validate the token and update the user's password.
+        userService.resetPasswordWithToken(request.getToken(), request.getNewPassword());
+
+        return ResponseEntity.ok(
+                Map.of("message", "Password has been reset successfully")
+        );
     }
 }

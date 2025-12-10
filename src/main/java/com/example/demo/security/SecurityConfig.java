@@ -35,6 +35,7 @@ public class SecurityConfig {
                                 "/index.html", //just for now to have a default page
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
                         // everything else requires authentication
@@ -47,7 +48,7 @@ public class SecurityConfig {
 
     // Password encoder bean
     @Bean
-    public PasswordEncoder passwordEncoder() {
+    public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 }
