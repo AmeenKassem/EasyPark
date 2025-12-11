@@ -23,11 +23,17 @@ public class User {
     @Column(nullable = false)
     private String email;
 
-    @NotBlank
     private String phone;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_user_id")
+    private String providerUserId;
 
     @NotBlank
     @Column(nullable = false)
@@ -42,6 +48,7 @@ public class User {
         this.phone = phone;
         this.role = role;
         this.passwordHash = passwordHash;
+        this.authProvider = AuthProvider.LOCAL; // Default auth provider for manual registration
     }
 
 
@@ -90,6 +97,22 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public AuthProvider getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(AuthProvider authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    public String getProviderUserId() {
+        return providerUserId;
+    }
+
+    public void setProviderUserId(String providerUserId) {
+        this.providerUserId = providerUserId;
     }
 
 }

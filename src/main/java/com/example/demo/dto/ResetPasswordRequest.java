@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Size;
 
 public class ResetPasswordRequest {
 
-    @NotBlank
     @Email
     private String email; // not needed ! should be removed later
 

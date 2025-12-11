@@ -9,6 +9,8 @@ import com.example.demo.dto.UserSummary;
 import com.example.demo.model.User;
 import com.example.demo.service.UserService;
 import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.example.demo.security.JwtService;
+import com.example.demo.dto.GoogleLoginRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -124,34 +127,66 @@ public class AuthController {
     //     return ResponseEntity.ok(Map.of("tempPassword", tempPassword));
     // }
 
-    // ============================
-    // FORGOT PASSWORD - CREATE RESET TOKEN
-    // ============================
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        // This will create a new reset token for the given email and store it in the database.
-        // For development purposes we return the token in the response,
-        // later this should be sent by email instead.
-        String resetToken = userService.createPasswordResetToken(request.getEmail());
+    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            // This will create a reset token, store it in the database
+            // and send an email with the reset link.
+            userService.createPasswordResetToken(request.getEmail());
+        } catch (IllegalArgumentException ex) {
+            // Do not reveal whether the email exists or not in the system.
+            // We always return the same generic message.
+        }
 
-        return ResponseEntity.ok(
-                Map.of(
-                        "message", "If this email exists, a password reset token was generated",
-                        "resetToken", resetToken
-                ) // we return the token here only for testing purposes -- later it should be emailed
+        AuthResponse response = new AuthResponse(
+                "If this email exists in our system, a reset link has been sent."
         );
+
+        return ResponseEntity.ok(response);
     }
 
-    // ============================
-    // RESET PASSWORD USING TOKEN
-    // ============================
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<AuthResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         // This will validate the token and update the user's password.
         userService.resetPasswordWithToken(request.getToken(), request.getNewPassword());
 
-        return ResponseEntity.ok(
-                Map.of("message", "Password has been reset successfully")
+        AuthResponse response = new AuthResponse(
+                "Password has been reset successfully"
         );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google-login")
+    public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleLoginRequest request) {
+        try {
+            // Delegate the actual Google login / registration logic to the service
+            User user = userService.loginWithGoogle(request);
+
+            String token = jwtService.generateToken(user);
+
+            UserSummary summary = new UserSummary(
+                    user.getId(),
+                    user.getFullName(),
+                    user.getEmail(),
+                    user.getPhone(),
+                    user.getRole().name()
+            );
+
+            AuthResponse response = new AuthResponse(
+                    "Login successful",
+                    token,
+                    summary
+            );
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException ex) {
+            // For example: invalid state, email mismatch, etc.
+            return ResponseEntity.badRequest().body(new AuthResponse(ex.getMessage()));
+        } catch (Exception ex) {
+            // Generic fallback
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new AuthResponse("Google login failed: " + ex.getMessage()));
+        }
     }
 }

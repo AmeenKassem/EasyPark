@@ -33,10 +33,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/", //just for now to have a default page
                                 "/index.html", //just for now to have a default page
+                                "/reset-password.html",
+                                "/Logo.png",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/forgot-password",
-                                "/api/auth/reset-password"
+                                "/api/auth/reset-password",
+                                "/api/auth/google-login" 
                         ).permitAll()
                         // everything else requires authentication
                         .anyRequest().authenticated()
