@@ -1,22 +1,20 @@
 package com.example.demo.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-/**
- * Default implementation of EmailService using Spring's JavaMailSender.
- */
 @Service
 public class EmailServiceImpl implements EmailService {
 
+    private static final Logger log = LoggerFactory.getLogger(EmailServiceImpl.class);
+
     private final JavaMailSender mailSender;
 
-    /**
-     * Sender address configured in application.properties:
-     * spring.mail.from=YOUR_EMAIL@gmail.com
-     */
     @Value("${spring.mail.from}")
     private String fromAddress;
 
@@ -26,14 +24,14 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendPasswordResetEmail(String toEmail, String resetLink) {
-        SimpleMailMessage message = new SimpleMailMessage();
+        // Do NOT log the reset link (it contains the token)
+        log.info("action=email_reset start to={}", safeEmail(toEmail));
 
-        // Set basic email properties
+        SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(toEmail);
         message.setSubject("Reset your password");
 
-        // Plain-text body (can be later replaced with HTML template if needed)
         String text = "Hi,\n\n"
                 + "We received a request to reset your password.\n"
                 + "To choose a new password, click the link below:\n"
@@ -42,7 +40,16 @@ public class EmailServiceImpl implements EmailService {
 
         message.setText(text);
 
-        // Send the email via SMTP
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+            log.info("action=email_reset success to={}", safeEmail(toEmail));
+        } catch (Exception ex) {
+            log.error("action=email_reset fail to={} reason={}", safeEmail(toEmail), ex.getClass().getSimpleName(), ex);
+            throw ex;
+        }
+    }
+
+    private String safeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
     }
 }
