@@ -25,29 +25,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                // We are using JWT, so no CSRF and no sessions
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf.disable()) // keep this for your HTML/REST flow
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // needed for H2 console
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // open endpoints:
                         .requestMatchers(
-                                "/", //just for now to have a default page
-                                "/index.html", //just for now to have a default page
+                                "/",
+                                "/index.html",
                                 "/reset-password.html",
                                 "/Logo.png",
+                                "/h2-console/**",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
-                                "/api/auth/google-login" 
+                                "/api/auth/google-login"
                         ).permitAll()
-                        // everything else requires authentication
                         .anyRequest().authenticated()
                 )
-                // Add our JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
+
+
 
     // Password encoder bean
     @Bean
