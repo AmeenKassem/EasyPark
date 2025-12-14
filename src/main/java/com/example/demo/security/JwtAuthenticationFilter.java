@@ -65,7 +65,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                 }
                 case "BOTH" -> {
-                    // BOTH = גם נהג וגם בעלים
                     authorities = List.of(
                             new SimpleGrantedAuthority("ROLE_DRIVER"),
                             new SimpleGrantedAuthority("ROLE_OWNER"),
@@ -73,7 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                 }
                 default -> {
-                    authorities = List.of(); // בלי תפקידים
+                    authorities = List.of(); 
                 }
             }
 

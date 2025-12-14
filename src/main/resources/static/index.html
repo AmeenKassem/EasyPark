@@ -504,7 +504,57 @@
         .modal-content input {
             width: 100%;
         }
+
+        .auth-divider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin: 24px 0;
+        color: #e5e7eb;              
+        font-size: 0.9rem;
+        }
+
+        .auth-divider-line {
+        flex: 1;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.18);   
+        border-radius: 999px;
+        }
+
+        .auth-divider-text {
+        white-space: nowrap;
+        }
+
+        #google-login-wrapper {
+        display: flex;
+        justify-content: center;
+        margin-top: 12px;
+        }
+
+        #google-login-container {
+        display: inline-block; 
+        }
+
+        #google-login-container > div {
+        min-width: 260px;   
+        }
+
+        .logo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .logo-image {
+            width: 140px; /* אפשר לשנות 120–180 לפי הטעם */
+            height: auto;
+            object-fit: contain;
+            border-radius: 22px; /* בגלל שהאייקון שלך עם פינות מעוגלות */
+        }
     </style>
+    <script src="https://accounts.google.com/gsi/client?hl=en" async defer></script>
 </head>
 <body>
 <div class="app-shell">
@@ -537,11 +587,7 @@
     <aside class="sidebar">
         <div>
             <div class="logo">
-                <div class="logo-badge">EP</div>
-                <div>
-                    <div class="logo-text-main">EasyPark</div>
-                    <div class="logo-text-sub">SMART PARKING</div>
-                </div>
+                <img src="/Logo.png" class="logo-image" alt="EasyPark Logo">
             </div>
 
             <div class="sidebar-hero">
@@ -615,6 +661,20 @@
                         <a href="#" id="forgot-password-link">Forgot password?</a>
                     </p>
                 </form>
+
+                <!-- Google Login -->
+                <div style="margin-top: 12px; text-align: center;">
+                    <div class="auth-divider">
+                        <span class="auth-divider-line"></span>
+                        <span class="auth-divider-text">or</span>
+                        <span class="auth-divider-line"></span>
+                    </div>
+
+                    <!-- כפתור גוגל ממורכז -->
+                    <div id="google-login-wrapper">
+                        <div id="google-login-container"></div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -735,7 +795,7 @@
     <div class="modal-content">
         <h2>Reset Password</h2>
         <p style="font-size: 13px; color: #cbd5f5; margin-top: 0; margin-bottom: 10px;">
-            Enter your email and we will generate a temporary password for the demo.
+            Enter your email and we will send you a reset link.
         </p>
         <input type="email" id="forgot-email" placeholder="you@example.com" />
         <div style="margin-top: 14px; display:flex; justify-content: flex-end; gap:8px;">
@@ -842,6 +902,46 @@
         forgotModal.classList.remove('open');
     }
 
+    // ===== Google Login =====
+    async function handleGoogleCredentialResponse(response) {
+        try {
+            const idToken = response.credential;
+
+            // send the ID token to the backend for verification and login
+            const res = await fetch('/api/auth/google-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    googleIdToken: idToken   
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                showToast(data.message || 'Google login failed', 'error');
+                output.textContent = 'Google login failed: ' + (data.message || JSON.stringify(data));
+                return;
+            }
+
+            const user = data.userSummary || data.summary || {};
+            currentUserEmail = user.email || 'Google user';
+            currentUserEmailSpan.textContent = currentUserEmail;
+
+            tabDashboard.disabled = false;
+            tabLogin.classList.add('hidden');
+            tabRegister.classList.add('hidden');
+            showView('dashboard');
+
+            showToast('Logged in with Google', 'success');
+            output.textContent = 'Google login successful. Switched to dashboard.';
+        } catch (err) {
+            console.error(err);
+            showToast('Google login error: ' + err, 'error');
+            output.textContent = 'Google login error: ' + err;
+        }
+    }
+
     async function handleForgotSubmit() {
         const email = forgotEmailInput.value.trim();
 
@@ -851,7 +951,7 @@
         }
 
         try {
-            const response = await fetch("/api/auth/reset-password", {
+            const response = await fetch("/api/auth/forgot-password", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email })
@@ -860,14 +960,15 @@
             const data = await response.json();
 
             if (response.ok) {
-                // For the demo we just show the temporary password in a toast
-                showToast("Temporary password: " + (data.tempPassword || "check backend"), "success");
+                // We do not expose whether the email exists or not.
+                showToast(data.message || "If this email exists, a reset link has been sent.", "success");
                 closeForgotModal();
             } else {
-                showToast(data.error || "Error resetting password", "error");
+                // Generic error message
+                showToast(data.message || "Error requesting password reset", "error");
             }
         } catch (err) {
-            showToast("Error resetting password: " + err, "error");
+            showToast("Error requesting password reset: " + err, "error");
         }
     }
 
@@ -1000,6 +1101,29 @@
 
         showView('login');
     });
+
+    // Initialize Google Sign-In button
+    window.onload = function () {
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+            google.accounts.id.initialize({
+                client_id: "489117864776-2n3budaeu2s75q3dg8s6gb4088crampj.apps.googleusercontent.com",
+                callback: handleGoogleCredentialResponse
+            });
+
+            const container = document.getElementById("google-login-container");
+            if (container) {
+                google.accounts.id.renderButton(container, {
+                    type: "standard",
+                    theme: "outline",
+                    size: "large",
+                    shape: "pill",
+                    width: 240,
+                    text: "continue_with",
+                });
+            }
+        }
+    };
+
 </script>
 </body>
 </html>
