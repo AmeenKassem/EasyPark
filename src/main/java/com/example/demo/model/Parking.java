@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 @Entity
 public class Parking {
     @Id
-    private Long id;
+    private String parkingId;
     private String location;
     private double price;
     private String type; // Sunny or not
@@ -15,20 +15,16 @@ public class Parking {
     public Parking() {
     }
 
-    public Parking(Long id, String location, double price, String type) {
-        this.id = id;
+    public Parking(String parkingId, String location, double price, String type) {
+        this.parkingId = parkingId;
         this.location = location;
         this.price = price;
         this.type = type;
     }
 
     // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
+    public String getParkingId() {
+        return parkingId;
     }
 
     public String getLocation() {
