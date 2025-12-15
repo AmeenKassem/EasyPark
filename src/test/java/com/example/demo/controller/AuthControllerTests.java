@@ -5,6 +5,7 @@ import com.example.demo.dto.RegisterRequest;
 import com.example.demo.dto.ResetPasswordRequest;
 import com.example.demo.model.Role;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.security.JwtService;
 import com.example.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -37,6 +39,9 @@ class AuthControllerTests {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private JwtService jwtService;
 
     @BeforeEach
     void cleanDatabase() {
@@ -146,51 +151,58 @@ class AuthControllerTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Invalid email or password"));
     }
-
     @Test
-    void resetPasswordEndpoint_forExistingUser_returnsTempPassword() throws Exception {
-        RegisterRequest reg = buildRegisterRequest(
-                "Reset API User",
-                "resetapi@example.com",
-                "050-8888888",
-                "Original1!",
-                Role.OWNER
-        );
-        userService.register(reg);
-
-        ResetPasswordRequest request = new ResetPasswordRequest("resetapi@example.com");
+    void forgotPassword_alwaysReturnsOk() throws Exception {
+        userService.register(buildRegisterRequest(
+                "User",
+                "user@example.com",
+                "050-1234567",
+                "Password1!",
+                Role.DRIVER
+        ));
 
         mockMvc.perform(
-                        post("/api/auth/reset-password")
+                        post("/api/auth/forgot-password")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request))
+                                .content("""
+                        { "email": "user@example.com" }
+                    """)
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tempPassword").exists());
+                .andExpect(jsonPath("$.message").exists());
     }
-
     @Test
-    void resetPasswordEndpoint_forNonExistingUser_returns400() throws Exception {
-        ResetPasswordRequest request = new ResetPasswordRequest("no-such-api@example.com");
-
+    void resetPassword_withInvalidToken_fails() throws Exception {
         mockMvc.perform(
                         post("/api/auth/reset-password")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request))
+                                .content("""
+                        {
+                          "token": "invalid-token",
+                          "newPassword": "NewPassword123"
+                        }
+                    """)
                 )
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("User not found"));
+                .andExpect(status().isBadRequest());
     }
 
+
     @Test
-    void getUsersEndpoint_returnsRegisteredUsers() throws Exception {
-        userService.register(buildRegisterRequest(
+    void getUsersEndpoint_withValidToken_returnsRegisteredUsers() throws Exception {
+        // Arrange: create two users in the system
+        var userA = userService.register(buildRegisterRequest(
                 "User A", "userA@example.com", "050-9999999", "Password1!", Role.DRIVER));
+
         userService.register(buildRegisterRequest(
                 "User B", "userB@example.com", "050-1010101", "Password1!", Role.OWNER));
 
+        // Generate a valid JWT token for userA
+        String token = jwtService.generateToken(userA);
+
+        // Act + Assert: call /api/auth/users with Authorization header
         mockMvc.perform(
                         get("/api/auth/users")
+                                .header("Authorization", "Bearer " + token)
                                 .accept(MediaType.APPLICATION_JSON)
                 )
                 .andExpect(status().isOk())
