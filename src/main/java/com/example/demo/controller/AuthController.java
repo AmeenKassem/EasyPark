@@ -1,57 +1,46 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.AuthResponse;
-import com.example.demo.dto.ForgotPasswordRequest;
-import com.example.demo.dto.LoginRequest;
-import com.example.demo.dto.RegisterRequest;
-import com.example.demo.dto.ResetPasswordRequest;
-import com.example.demo.dto.UserSummary;
+import com.example.demo.dto.*;
 import com.example.demo.model.User;
 import com.example.demo.service.UserService;
+import com.example.demo.security.JwtService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
-
-import com.example.demo.security.JwtService;
-import com.example.demo.dto.GoogleLoginRequest;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*") // later restrict to your actual frontend origin
+@CrossOrigin(origins = "*")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final UserService userService;
     private final JwtService jwtService;
-
 
     public AuthController(UserService userService, JwtService jwtService) {
         this.userService = userService;
         this.jwtService = jwtService;
     }
 
-    // ============================
-    // REGISTER
-    // ============================
-    // @PostMapping("/register")
-    // public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-    //     User user = userService.register(request);
-    //     return ResponseEntity.ok(new AuthResponse("Registration successful"));
-    // }
-
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        // 1. Create the user
-        User user = userService.register(request);
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                 HttpServletRequest httpReq) {
+        log.info("action=register start email={} role={} ip={}",
+                safeEmail(request.getEmail()),
+                request.getRole(),
+                httpReq.getRemoteAddr());
 
-        // 2. Generate JWT
+        User user = userService.register(request);
         String token = jwtService.generateToken(user);
 
-        // 3. Build UserSummary
         UserSummary summary = new UserSummary(
                 user.getId(),
                 user.getFullName(),
@@ -60,35 +49,22 @@ public class AuthController {
                 user.getRole().name()
         );
 
-        // 4. Return AuthResponse with token + user
-        AuthResponse response = new AuthResponse(
-                "Registration successful",
-                token,
-                summary
-        );
+        AuthResponse response = new AuthResponse("Registration successful", token, summary);
+
+        log.info("action=register success userId={} email={} role={}",
+                user.getId(), safeEmail(user.getEmail()), user.getRole());
 
         return ResponseEntity.ok(response);
     }
-
-    // ============================
-    // LOGIN
-    // ============================
-
-    // @PostMapping("/login")
-    // public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-    //     userService.login(request);
-    //     return ResponseEntity.ok(new AuthResponse("Login successful"));
-    // }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        // 1. Authenticate user
-        User user = userService.login(request);
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+                                              HttpServletRequest httpReq) {
+        log.info("action=login start email={} ip={}", safeEmail(request.getEmail()), httpReq.getRemoteAddr());
 
-        // 2. Generate JWT
+        User user = userService.login(request);
         String token = jwtService.generateToken(user);
 
-        // 3. Build UserSummary
         UserSummary summary = new UserSummary(
                 user.getId(),
                 user.getFullName(),
@@ -97,72 +73,62 @@ public class AuthController {
                 user.getRole().name()
         );
 
-        // 4. Build AuthResponse
-        AuthResponse response = new AuthResponse(
-                "Login successful",
-                token,
-                summary
-        );
+        AuthResponse response = new AuthResponse("Login successful", token, summary);
+
+        log.info("action=login success userId={} email={} role={}",
+                user.getId(), safeEmail(user.getEmail()), user.getRole());
 
         return ResponseEntity.ok(response);
     }
 
-    // ============================
-    // LIST ALL USERS
-    // ============================
     @GetMapping("/users")
-    public ResponseEntity<List<UserSummary>> getUsers() {
+    public ResponseEntity<List<UserSummary>> getUsers(HttpServletRequest httpReq) {
+        log.info("action=list_users start ip={}", httpReq.getRemoteAddr());
         List<UserSummary> users = userService.getAllUsers();
+        log.info("action=list_users success count={}", users.size());
         return ResponseEntity.ok(users);
     }
 
-    // ============================
-    // FORGOT / RESET PASSWORD
-    // ============================
-    // @PostMapping("/reset-password")
-    // public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
-    //     String tempPassword = userService.resetPassword(request.getEmail());
-
-    //     // frontend expects: { "tempPassword": "123456" }
-    //     return ResponseEntity.ok(Map.of("tempPassword", tempPassword));
-    // }
-
     @PostMapping("/forgot-password")
-    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request,
+                                                       HttpServletRequest httpReq) {
+        log.info("action=forgot_password start email={} ip={}",
+                safeEmail(request.getEmail()), httpReq.getRemoteAddr());
+
         try {
-            // This will create a reset token, store it in the database
-            // and send an email with the reset link.
             userService.createPasswordResetToken(request.getEmail());
+            log.info("action=forgot_password processed email={}", safeEmail(request.getEmail()));
         } catch (IllegalArgumentException ex) {
-            // Do not reveal whether the email exists or not in the system.
-            // We always return the same generic message.
+            // Intentionally do not reveal if email exists
+            log.info("action=forgot_password processed email={} note=generic_response", safeEmail(request.getEmail()));
         }
 
-        AuthResponse response = new AuthResponse(
+        return ResponseEntity.ok(new AuthResponse(
                 "If this email exists in our system, a reset link has been sent."
-        );
-
-        return ResponseEntity.ok(response);
+        ));
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<AuthResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        // This will validate the token and update the user's password.
+    public ResponseEntity<AuthResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request,
+                                                      HttpServletRequest httpReq) {
+        // Do NOT log the token or the new password
+        log.info("action=reset_password start ip={}", httpReq.getRemoteAddr());
+
         userService.resetPasswordWithToken(request.getToken(), request.getNewPassword());
 
-        AuthResponse response = new AuthResponse(
-                "Password has been reset successfully"
-        );
-
-        return ResponseEntity.ok(response);
+        log.info("action=reset_password success");
+        return ResponseEntity.ok(new AuthResponse("Password has been reset successfully"));
     }
 
     @PostMapping("/google-login")
-    public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleLoginRequest request) {
-        try {
-            // Delegate the actual Google login / registration logic to the service
-            User user = userService.loginWithGoogle(request);
+    public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleLoginRequest request,
+                                                    HttpServletRequest httpReq) {
+        log.info("action=google_login start ip={} hasIdToken={}",
+                httpReq.getRemoteAddr(),
+                request != null && request.getGoogleIdToken() != null && !request.getGoogleIdToken().isBlank());
 
+        try {
+            User user = userService.loginWithGoogle(request);
             String token = jwtService.generateToken(user);
 
             UserSummary summary = new UserSummary(
@@ -173,20 +139,22 @@ public class AuthController {
                     user.getRole().name()
             );
 
-            AuthResponse response = new AuthResponse(
-                    "Login successful",
-                    token,
-                    summary
-            );
-            return ResponseEntity.ok(response);
+            log.info("action=google_login success userId={} email={} role={}",
+                    user.getId(), safeEmail(user.getEmail()), user.getRole());
+
+            return ResponseEntity.ok(new AuthResponse("Login successful", token, summary));
 
         } catch (IllegalArgumentException ex) {
-            // For example: invalid state, email mismatch, etc.
+            log.warn("action=google_login fail reason=BAD_REQUEST msg={}", ex.getMessage());
             return ResponseEntity.badRequest().body(new AuthResponse(ex.getMessage()));
         } catch (Exception ex) {
-            // Generic fallback
+            log.error("action=google_login fail reason=SERVER_ERROR", ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new AuthResponse("Google login failed: " + ex.getMessage()));
+                    .body(new AuthResponse("Google login failed"));
         }
+    }
+
+    private String safeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
     }
 }
