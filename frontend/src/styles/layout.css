@@ -1,0 +1,106 @@
+/* Desktop-first layout */
+.ep-app {
+    min-height: 100vh;
+    background: #0b1020;
+    color: #ffffff;
+    width: 100vw;
+}
+
+.ep-header {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    top: 0;
+    backdrop-filter: blur(10px);
+    background: rgba(11, 16, 32, 0.85);
+    z-index: 10;
+}
+
+.ep-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+.ep-nav {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ep-link {
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid transparent;
+}
+
+.ep-link:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ep-link-active {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.ep-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ep-chip {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    opacity: 0.95;
+}
+
+.ep-btn {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    cursor: pointer;
+}
+
+.ep-btn:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.ep-btn-primary {
+    border-color: rgba(120, 180, 255, 0.35);
+    background: rgba(120, 180, 255, 0.16);
+}
+
+.ep-main {
+    padding: 22px 18px;
+}
+
+.ep-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.ep-title {
+    margin: 0 0 12px 0;
+    font-size: 28px;
+}
+
+.ep-card {
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 18px;
+    padding: 16px;
+}
