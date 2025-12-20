@@ -1,0 +1,133 @@
+/* Auth pages (Register/Login) */
+
+.auth-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 32px 18px;
+}
+
+.auth-card {
+    width: min(980px, 100%);
+    border-radius: 22px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: radial-gradient(
+            1200px 500px at 20% 10%,
+            rgba(120, 180, 255, 0.14),
+            transparent 55%
+    ),
+    radial-gradient(
+            900px 400px at 85% 20%,
+            rgba(160, 120, 255, 0.12),
+            transparent 55%
+    ),
+    rgba(255, 255, 255, 0.035);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.55);
+}
+
+.auth-title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+.auth-subtitle {
+    margin: 8px 0 18px 0;
+    opacity: 0.78;
+    line-height: 1.4;
+}
+
+.auth-form {
+    display: grid;
+    gap: 14px;
+}
+
+.auth-row-two {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 14px;
+    align-items: end;
+}
+
+@media (max-width: 860px) {
+    .auth-row-two {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auth-field label {
+    display: block;
+    font-size: 12px;
+    opacity: 0.75;
+    margin: 0 0 6px 2px;
+}
+
+.auth-input,
+.auth-select {
+    width: 100%;
+    height: 46px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(11, 16, 32, 0.55);
+    color: #fff;
+    padding: 0 14px;
+    outline: none;
+}
+
+.auth-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-input:focus,
+.auth-select:focus {
+    border-color: rgba(120, 180, 255, 0.55);
+    box-shadow: 0 0 0 4px rgba(120, 180, 255, 0.15);
+}
+
+.auth-error {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 120, 120, 0.95);
+}
+
+.auth-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+}
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 14px 0 10px 0;
+    opacity: 0.75;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.auth-google {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 46px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    cursor: pointer;
+}
+
+.auth-google:hover {
+    background: rgba(255, 255, 255, 0.10);
+}

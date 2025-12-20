@@ -1,0 +1,133 @@
+.driver-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 0.9fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.driver-map {
+    height: calc(100vh - 64px - 44px - 22px);
+    min-height: 520px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background:
+            radial-gradient(900px 350px at 30% 20%, rgba(120,180,255,0.14), transparent 55%),
+            rgba(255,255,255,0.035);
+    box-shadow: 0 14px 50px rgba(0,0,0,0.45);
+    overflow: hidden;
+    position: sticky;
+    top: 84px;
+}
+
+.driver-map-inner {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    opacity: 0.85;
+}
+
+.driver-side {
+    display: grid;
+    gap: 12px;
+}
+
+.driver-filters {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.035);
+    padding: 14px;
+}
+
+.driver-filter-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.driver-input {
+    height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(11, 16, 32, 0.55);
+    color: #fff;
+    padding: 0 12px;
+    outline: none;
+}
+
+.driver-input:focus {
+    border-color: rgba(120,180,255,0.55);
+    box-shadow: 0 0 0 4px rgba(120,180,255,0.12);
+}
+
+.driver-select {
+    height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(11, 16, 32, 0.55);
+    color: #fff;
+    padding: 0 10px;
+    outline: none;
+}
+
+.spot-list {
+    display: grid;
+    gap: 12px;
+}
+
+.spot-card {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.035);
+    padding: 14px;
+    cursor: pointer;
+}
+
+.spot-card:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.spot-title {
+    font-weight: 750;
+    margin: 0 0 6px 0;
+}
+
+.spot-meta {
+    font-size: 12px;
+    opacity: 0.8;
+    margin: 0 0 10px 0;
+    line-height: 1.35;
+}
+
+.spot-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+}
+
+.spot-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.badge {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    opacity: 0.95;
+}
+
+@media (max-width: 1050px) {
+    .driver-grid {
+        grid-template-columns: 1fr;
+    }
+    .driver-map {
+        position: relative;
+        top: 0;
+        height: 420px;
+    }
+}
