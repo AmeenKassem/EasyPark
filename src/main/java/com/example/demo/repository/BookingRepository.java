@@ -1,0 +1,45 @@
+package com.example.demo.repository;
+
+import com.example.demo.model.Booking;
+import com.example.demo.model.BookingStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+
+public interface BookingRepository extends JpaRepository<Booking, Long> {
+
+    // Fetch bookings created by a specific driver
+    @Query("""
+           select b from Booking b
+           join fetch b.parking p
+           where b.driver.id = :driverId
+           order by b.startTime desc
+           """)
+    List<Booking> findMine(@Param("driverId") Long driverId);
+
+    // Fetch bookings for parking spots owned by a specific owner (Parking has ownerId field)
+    @Query("""
+           select b from Booking b
+           join fetch b.parking p
+           where p.ownerId = :ownerId
+           order by b.startTime desc
+           """)
+    List<Booking> findForOwner(@Param("ownerId") Long ownerId);
+
+    // Detect overlapping bookings for the same parking spot (for active statuses)
+    @Query("""
+           select count(b) from Booking b
+           where b.parking.id = :parkingId
+             and b.status in :activeStatuses
+             and b.startTime < :endTime
+             and b.endTime > :startTime
+           """)
+    long countOverlaps(@Param("parkingId") Long parkingId,
+                       @Param("startTime") LocalDateTime startTime,
+                       @Param("endTime") LocalDateTime endTime,
+                       @Param("activeStatuses") Collection<BookingStatus> activeStatuses);
+}
