@@ -3,6 +3,8 @@ package com.example.demo.service;
 import com.example.demo.dto.GoogleLoginRequest;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.RegisterRequest;
+import com.example.demo.dto.UpdateUserProfileRequest;
+import com.example.demo.dto.UpdateUserRoleRequest;
 import com.example.demo.dto.UserSummary;
 import com.example.demo.model.AuthProvider;
 import com.example.demo.model.PasswordResetToken;
@@ -58,6 +60,10 @@ public class UserService {
         this.googleAuthService = googleAuthService;
         this.emailService = emailService;
     }
+
+    // ============================
+    // REGISTER / LOGIN
+    // ============================
 
     @Transactional
     public User register(RegisterRequest request) {
@@ -131,17 +137,63 @@ public class UserService {
 
         List<UserSummary> list = userRepository.findAll()
                 .stream()
-                .map(user -> new UserSummary(
-                        user.getId(),
-                        user.getFullName(),
-                        user.getEmail(),
-                        user.getPhone(),
-                        user.getRole().name()
-                ))
+                .map(this::toSummary)
                 .toList();
 
         logger.info("action=list_users success count={}", list.size());
         return list;
+    }
+
+    // ============================
+    // ME / PROFILE
+    // ============================
+
+    @Transactional(readOnly = true)
+    public UserSummary getUserSummary(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return toSummary(user);
+    }
+
+    @Transactional
+    public UserSummary updateProfile(Long userId, UpdateUserProfileRequest req) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (req.getFullName() != null) {
+            String name = req.getFullName().trim();
+            if (name.isEmpty()) {
+                throw new IllegalArgumentException("fullName cannot be empty");
+            }
+            user.setFullName(name);
+        }
+
+        if (req.getPhone() != null) {
+            String phone = req.getPhone().trim();
+            user.setPhone(phone.isEmpty() ? null : phone);
+        }
+
+        User saved = userRepository.save(user);
+        return toSummary(saved);
+    }
+
+    @Transactional
+    public UserSummary updateRole(Long userId, UpdateUserRoleRequest req) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Role role;
+        try {
+            // UpdateUserRoleRequest.role is expected to be a String (e.g., "DRIVER", "OWNER", "BOTH")
+            role = Role.valueOf(req.getRole().trim().toUpperCase());
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Invalid role: " + req.getRole());
+        }
+
+        user.setRole(role);
+
+        User saved = userRepository.save(user);
+        return toSummary(saved);
     }
 
     // ============================
@@ -176,7 +228,6 @@ public class UserService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    // Controller returns generic response; we still log server-side for debugging
                     logger.warn("action=reset_token_create fail reason=USER_NOT_FOUND email={}", safeEmail(email));
                     return new IllegalArgumentException("User with given email does not exist");
                 });
@@ -215,8 +266,7 @@ public class UserService {
                 });
 
         if (resetToken.isUsed()) {
-            logger.warn("action=reset_password_with_token fail reason=TOKEN_USED userId={}",
-                    safeUserId(resetToken));
+            logger.warn("action=reset_password_with_token fail reason=TOKEN_USED userId={}", safeUserId(resetToken));
             throw new IllegalArgumentException("Reset token has already been used");
         }
 
@@ -228,8 +278,7 @@ public class UserService {
 
         User user = resetToken.getUser();
 
-        String encoded = passwordEncoder.encode(newPassword);
-        user.setPasswordHash(encoded);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
         resetToken.setUsed(true);
@@ -343,5 +392,15 @@ public class UserService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private UserSummary toSummary(User user) {
+        return new UserSummary(
+                user.getId(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getRole() == null ? null : user.getRole().name()
+        );
     }
 }
