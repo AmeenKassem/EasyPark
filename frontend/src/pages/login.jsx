@@ -19,6 +19,10 @@ export default function LoginPage() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
+    const [forgotOpen, setForgotOpen] = useState(false)
+    const [forgotEmail, setForgotEmail] = useState('')
+    const [forgotMsg, setForgotMsg] = useState('')
+
     const canSubmit = useMemo(() => {
         return email.trim().length >= 5 && password.length >= 6 && !loading
     }, [email, password, loading])
@@ -93,6 +97,38 @@ export default function LoginPage() {
         }
     }
 
+    async function onForgotSubmit() {
+        setForgotMsg('')
+
+        const emailToSend = forgotEmail.trim()
+        if (!emailToSend) {
+            setForgotMsg('Please enter your email.')
+            return
+        }
+
+        setLoading(true)
+        try {
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailToSend }),
+            })
+
+            const data = await res.json().catch(() => ({}))
+
+            if (!res.ok) {
+                setForgotMsg(data.message || `Error (${res.status})`)
+                return
+            }
+
+            setForgotMsg(data.message || 'If this email exists, a reset link was sent.')
+        } catch (err) {
+            setForgotMsg(err?.message || 'Error sending reset link.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
     return (
         <Layout title="Login">
             <div className="auth-wrap">
@@ -134,6 +170,18 @@ export default function LoginPage() {
                             />
                         </div>
 
+                        <button
+                            type="button"
+                            className="auth-link"
+                            onClick={() => {
+                                setForgotEmail(email) 
+                                setForgotMsg('')
+                                setForgotOpen(true)
+                            }}
+                        >
+                            Forgot password?
+                        </button>
+
                         {error && <div className="auth-error">{error}</div>}
 
                         <div className="auth-actions">
@@ -156,6 +204,62 @@ export default function LoginPage() {
                     </form>
                 </div>
             </div>
+            {forgotOpen && (
+                <div
+                    className="modal-backdrop"
+                    onClick={() => {
+                        setForgotOpen(false)
+                        setForgotMsg('')
+                    }}
+                >
+                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ marginTop: 0 }}>Reset password</h3>
+                        <p style={{ marginTop: 6, opacity: 0.85 }}>
+                            Enter your email and we’ll send you a reset link.
+                        </p>
+
+                        <input
+                            className="auth-input"
+                            type="email"
+                            placeholder="you@example.com"
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            style={{ marginTop: 10 }}
+                        />
+
+                        {forgotMsg && (
+                            <div className="auth-hint" style={{ marginTop: 10 }}>
+                                {forgotMsg}
+                            </div>
+                        )}
+
+                        <div className="auth-actions" style={{ marginTop: 12 }}>
+                            <button
+                                className="ep-btn ep-btn-primary"
+                                type="button"
+                                onClick={onForgotSubmit}
+                                disabled={loading}
+                                style={{
+                                    opacity: loading ? 0.55 : 1,
+                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                }}
+                            >
+                                {loading ? 'Sending...' : 'Send reset link'}
+                            </button>
+                            <button
+                                className="ep-btn"
+                                type="button"
+                                onClick={() => {
+                                    setForgotOpen(false)
+                                    setForgotMsg('')
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     )
 }

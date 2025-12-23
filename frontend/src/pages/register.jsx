@@ -33,7 +33,25 @@ export default function RegisterPage() {
         )
     }, [fullName, email, password])
 
-    function onSubmit(e) {
+    // function onSubmit(e) {
+    //     e.preventDefault()
+    //     setError('')
+
+    //     if (!canSubmit) {
+    //         setError('Please fill in all required fields.')
+    //         return
+    //     }
+
+    //     // Temporary mock register: store user locally and continue
+    //     loginMock({
+    //         fullName: fullName.trim(),
+    //         roles: roleToRoles(role),
+    //     })
+
+    //     nav('/')
+    // }
+
+    async function onSubmit(e) {
         e.preventDefault()
         setError('')
 
@@ -42,14 +60,38 @@ export default function RegisterPage() {
             return
         }
 
-        // Temporary mock register: store user locally and continue
-        loginMock({
+        const payload = {
             fullName: fullName.trim(),
-            roles: roleToRoles(role),
-        })
+            email: email.trim(),
+            phone: phone.trim(),
+            role,      
+            password,
+        }
 
-        nav('/')
-    }
+        try {
+            const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            })
+
+            const text = await res.text()
+            let data = {}
+            try { data = JSON.parse(text) } catch {}
+
+            if (!res.ok) {
+            setError(data.message || text || `Register failed (${res.status})`)
+            return
+            }
+
+            const token = data.token || data.accessToken || data.jwt
+            if (token) localStorage.setItem('easypark_token', token)
+
+            nav('/login') 
+        } catch (err) {
+            setError('Register error: ' + err)
+        }
+        }
 
     return (
         <Layout title="Register">

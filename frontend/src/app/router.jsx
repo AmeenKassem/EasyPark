@@ -4,6 +4,7 @@ import OwnerPage from '../pages/owner.jsx'
 import SharedPage from '../pages/shared.jsx'
 import LoginPage from '../pages/login.jsx'
 import RegisterPage from '../pages/register.jsx'
+import ResetPasswordPage from '../pages/ResetPasswordPage.jsx'
 
 export const router = createBrowserRouter([
     { path: '/', element: <SharedPage /> },
@@ -11,4 +12,5 @@ export const router = createBrowserRouter([
     { path: '/owner', element: <OwnerPage /> },
     { path: '/login', element: <LoginPage /> },
     { path: '/register', element: <RegisterPage /> },
+    { path: '/reset-password', element: <ResetPasswordPage /> },
 ])
