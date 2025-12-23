@@ -42,4 +42,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                        @Param("startTime") LocalDateTime startTime,
                        @Param("endTime") LocalDateTime endTime,
                        @Param("activeStatuses") Collection<BookingStatus> activeStatuses);
+
+    // Calculate total revenue for an owner based on APPROVED bookings only
+    // Assuming 'APPROVED' is the status where money is earned.
+    @Query("""
+           select sum(b.totalPrice) from Booking b
+           join b.parking p
+           where p.ownerId = :ownerId
+           and b.status = 'APPROVED'
+           """)
+    Double calculateTotalRevenueForOwner(@Param("ownerId") Long ownerId);
 }
