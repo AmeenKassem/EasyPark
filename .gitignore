@@ -33,3 +33,7 @@ build/
 .vscode/
 
 /data/
+
+# Local databases
+data/*.mv.db
+data/*.trace.db
