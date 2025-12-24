@@ -42,38 +42,57 @@ export default function RegisterPage() {
             return
         }
 
+        const payload = {
+            fullName: fullName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            password,
+            role,
+        }
+
         try {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fullName: fullName.trim(),
-                    email: email.trim(),
-                    phone: phone.trim(),
-                    password,
-                    role,
-                }),
+                body: JSON.stringify(payload),
             })
 
-            if (!res.ok) {
-                const msg = await res.text().catch(() => '')
-                throw new Error(msg || `Register failed (${res.status})`)
+            const text = await res.text()
+            let data = null
+            try {
+                data = text ? JSON.parse(text) : null
+            } catch {
+                data = null
             }
 
-            const data = await res.json()
+            if (!res.ok) {
+                const msg =
+                    (data && (data.message || data.error)) ||
+                    text ||
+                    `Register failed (${res.status})`
+                setError(msg)
+                return
+            }
 
-            // Persist user in frontend (same pattern as login)
+            // token (if backend returns it)
+            const token =
+                (data && (data.token || data.accessToken || data.jwt)) || null
+            if (token) localStorage.setItem('easypark_token', token)
+
+            // Persist user in frontend (so navbar/UI behaves as "logged in")
+            const returnedUser = data?.user
             loginMock({
-                fullName: data.user.fullName,
-                roles: roleToRoles(data.user.role),
+                fullName: returnedUser?.fullName || payload.fullName,
+                roles: roleToRoles(returnedUser?.role || payload.role),
             })
 
-            nav('/')
+            // Choose one:
+            // nav('/login')  // if you want user to login after register
+            nav('/') // if you want user logged-in immediately after register
         } catch (err) {
-            setError(err.message || 'Registration failed.')
+            setError(err?.message ? `Register error: ${err.message}` : 'Register error.')
         }
     }
-
 
     return (
         <Layout title="Register">

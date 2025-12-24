@@ -20,7 +20,7 @@ public class User {
 
     @Email
     @NotBlank
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
     private String phone;
