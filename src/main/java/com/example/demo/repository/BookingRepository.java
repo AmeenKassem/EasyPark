@@ -52,4 +52,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            and b.status = 'APPROVED'
            """)
     Double calculateTotalRevenueForOwner(@Param("ownerId") Long ownerId);
+
+    // Calculate total expenses for a driver
+    @Query("""
+           select sum(b.totalPrice) from Booking b
+           where b.driver.id = :driverId
+           and b.status = 'APPROVED'
+           """)
+    Double calculateTotalExpensesForDriver(@Param("driverId") Long driverId);
 }
