@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.OwnerDashboardResponse;
+import com.example.demo.dto.DriverReportResponse;
 import com.example.demo.service.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +28,7 @@ public class ReportController {
         return (Long) auth.getPrincipal();
     }
 
-    // Use Case 5 Implementation
+    // Use Case Reports
     @PreAuthorize("hasRole('OWNER')")
     @GetMapping("/owner-dashboard")
     public ResponseEntity<OwnerDashboardResponse> getOwnerDashboard(Authentication auth) {
@@ -38,6 +39,20 @@ public class ReportController {
 
         log.info("action=get_owner_dashboard success ownerId={} revenue={} bookings={}",
                 ownerId, response.getTotalRevenue(), response.getTotalReservations());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasRole('DRIVER')")
+    @GetMapping("/driver-report")
+    public ResponseEntity<DriverReportResponse> getDriverReport(Authentication auth) {
+        Long driverId = currentUserId(auth);
+        log.info("action=get_driver_report start driverId={}", driverId);
+
+        DriverReportResponse response = reportService.getDriverReport(driverId);
+
+        log.info("action=get_driver_report success driverId={} expenses={} bookings={}",
+                driverId, response.getTotalExpenses(), response.getTotalBookings());
 
         return ResponseEntity.ok(response);
     }

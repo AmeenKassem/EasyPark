@@ -33,24 +33,6 @@ export default function RegisterPage() {
         )
     }, [fullName, email, password])
 
-    // function onSubmit(e) {
-    //     e.preventDefault()
-    //     setError('')
-
-    //     if (!canSubmit) {
-    //         setError('Please fill in all required fields.')
-    //         return
-    //     }
-
-    //     // Temporary mock register: store user locally and continue
-    //     loginMock({
-    //         fullName: fullName.trim(),
-    //         roles: roleToRoles(role),
-    //     })
-
-    //     nav('/')
-    // }
-
     async function onSubmit(e) {
         e.preventDefault()
         setError('')
@@ -64,34 +46,53 @@ export default function RegisterPage() {
             fullName: fullName.trim(),
             email: email.trim(),
             phone: phone.trim(),
-            role,      
             password,
+            role,
         }
 
         try {
             const res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             })
 
             const text = await res.text()
-            let data = {}
-            try { data = JSON.parse(text) } catch {}
-
-            if (!res.ok) {
-            setError(data.message || text || `Register failed (${res.status})`)
-            return
+            let data = null
+            try {
+                data = text ? JSON.parse(text) : null
+            } catch {
+                data = null
             }
 
-            const token = data.token || data.accessToken || data.jwt
+            if (!res.ok) {
+                const msg =
+                    (data && (data.message || data.error)) ||
+                    text ||
+                    `Register failed (${res.status})`
+                setError(msg)
+                return
+            }
+
+            // token (if backend returns it)
+            const token =
+                (data && (data.token || data.accessToken || data.jwt)) || null
             if (token) localStorage.setItem('easypark_token', token)
 
-            nav('/login') 
+            // Persist user in frontend (so navbar/UI behaves as "logged in")
+            const returnedUser = data?.user
+            loginMock({
+                fullName: returnedUser?.fullName || payload.fullName,
+                roles: roleToRoles(returnedUser?.role || payload.role),
+            })
+
+            // Choose one:
+            // nav('/login')  // if you want user to login after register
+            nav('/') // if you want user logged-in immediately after register
         } catch (err) {
-            setError('Register error: ' + err)
+            setError(err?.message ? `Register error: ${err.message}` : 'Register error.')
         }
-        }
+    }
 
     return (
         <Layout title="Register">
