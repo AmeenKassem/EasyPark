@@ -33,7 +33,7 @@ export default function RegisterPage() {
         )
     }, [fullName, email, password])
 
-    function onSubmit(e) {
+    async function onSubmit(e) {
         e.preventDefault()
         setError('')
 
@@ -42,14 +42,38 @@ export default function RegisterPage() {
             return
         }
 
-        // Temporary mock register: store user locally and continue
-        loginMock({
-            fullName: fullName.trim(),
-            roles: roleToRoles(role),
-        })
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fullName: fullName.trim(),
+                    email: email.trim(),
+                    phone: phone.trim(),
+                    password,
+                    role,
+                }),
+            })
 
-        nav('/')
+            if (!res.ok) {
+                const msg = await res.text().catch(() => '')
+                throw new Error(msg || `Register failed (${res.status})`)
+            }
+
+            const data = await res.json()
+
+            // Persist user in frontend (same pattern as login)
+            loginMock({
+                fullName: data.user.fullName,
+                roles: roleToRoles(data.user.role),
+            })
+
+            nav('/')
+        } catch (err) {
+            setError(err.message || 'Registration failed.')
+        }
     }
+
 
     return (
         <Layout title="Register">
