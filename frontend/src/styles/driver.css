@@ -1,4 +1,4 @@
-.map-screen {
+.ep-driver-screen {
     position: fixed;
     inset: 0;
     width: 100%;
@@ -7,27 +7,20 @@
     overflow: hidden;
 }
 
-/* Leaflet map layer must stay behind overlays */
-.map-layer {
+.ep-map-layer {
     position: absolute;
     inset: 0;
     z-index: 0;
 }
 
-/* Force Leaflet container behind overlays */
-.leaflet-container {
-    z-index: 0;
-}
-
-/* Overlay must be above Leaflet panes/controls */
-.overlay-root {
+.ep-overlay {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: 2000;
+    z-index: 9999;
 }
 
-.topbar {
+.ep-topbar {
     pointer-events: auto;
     position: absolute;
     top: calc(env(safe-area-inset-top, 0px) + 10px);
@@ -43,10 +36,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
-    z-index: 2001;
 }
 
-.brand {
+.ep-brand {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -54,7 +46,7 @@
     user-select: none;
 }
 
-.brand-badge {
+.ep-brand-badge {
     width: 38px;
     height: 38px;
     border-radius: 12px;
@@ -64,19 +56,13 @@
     place-items: center;
 }
 
-.brand-text {
+.ep-brand-text {
     font-size: 18px;
     font-weight: 900;
     color: #0f172a;
 }
 
-.topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.profile-btn {
+.ep-profile-btn {
     height: 40px;
     width: 40px;
     padding: 0;
@@ -85,7 +71,7 @@
     cursor: pointer;
 }
 
-.profile-avatar {
+.ep-profile-avatar {
     width: 40px;
     height: 40px;
     border-radius: 999px;
@@ -97,7 +83,7 @@
     border: 2px solid #fff;
 }
 
-.searchbar {
+.ep-searchbar {
     pointer-events: auto;
     position: absolute;
     top: calc(env(safe-area-inset-top, 0px) + 80px);
@@ -112,16 +98,15 @@
     grid-template-columns: 44px 1fr 44px;
     align-items: center;
     padding: 0 6px;
-    z-index: 2001;
 }
 
-.search-icon {
+.ep-search-icon {
     display: grid;
     place-items: center;
     color: rgba(100, 116, 139, 1);
 }
 
-.search-input {
+.ep-search-input {
     height: 42px;
     border: 0;
     outline: none;
@@ -130,11 +115,11 @@
     background: transparent;
 }
 
-.search-input::placeholder {
+.ep-search-input::placeholder {
     color: rgba(100, 116, 139, 0.75);
 }
 
-.filters-btn {
+.ep-filters-btn {
     height: 42px;
     width: 42px;
     border-radius: 999px;
@@ -146,11 +131,11 @@
     place-items: center;
 }
 
-.filters-btn:hover {
+.ep-filters-btn:hover {
     background: rgba(37, 99, 235, 0.08);
 }
 
-.fab {
+.ep-fab {
     pointer-events: auto;
     position: absolute;
     right: 14px;
@@ -165,14 +150,9 @@
     place-items: center;
     cursor: pointer;
     box-shadow: 0 18px 35px rgba(37, 99, 235, 0.35);
-    z-index: 2001;
 }
 
-.fab:hover {
-    filter: brightness(1.03);
-}
-
-.counter-pill {
+.ep-counter {
     pointer-events: none;
     position: absolute;
     left: 14px;
@@ -186,68 +166,28 @@
     color: #0f172a;
     font-weight: 800;
     font-size: 13px;
-    z-index: 2001;
 }
 
-/* Optional top-right "Hey + Logout" bar (enabled on wide screens) */
-.heybar {
-    pointer-events: auto;
-    position: absolute;
-    top: calc(env(safe-area-inset-top, 0px) + 10px);
-    right: 12px;
-    display: none;
-    z-index: 2002;
-}
-
-.hey-left {
-    display: none;
-}
-
-.hey-title {
-    font-size: 13px;
-    font-weight: 900;
-    color: #0f172a;
-}
-
-.hey-sub {
-    font-size: 12px;
-    color: #64748b;
-    margin-top: 2px;
-}
-
-.logout-btn {
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    background: #0b1220;
-    color: #fff;
-    font-weight: 900;
-    cursor: pointer;
-}
-
-/* Bottom sheet */
-.sheet {
+.ep-sheet {
     position: absolute;
     inset: 0;
     pointer-events: none;
     opacity: 0;
     transition: opacity 180ms ease;
-    z-index: 3000;
 }
 
-.sheet-open {
+.ep-sheet-open {
     pointer-events: auto;
     opacity: 1;
 }
 
-.sheet-backdrop {
+.ep-sheet-backdrop {
     position: absolute;
     inset: 0;
     background: rgba(15, 23, 42, 0.35);
 }
 
-.sheet-panel {
+.ep-sheet-panel {
     position: absolute;
     left: 0;
     right: 0;
@@ -262,11 +202,11 @@
     overflow: auto;
 }
 
-.sheet-open .sheet-panel {
+.ep-sheet-open .ep-sheet-panel {
     bottom: 0;
 }
 
-.sheet-handle {
+.ep-sheet-handle {
     width: 44px;
     height: 5px;
     border-radius: 999px;
@@ -274,19 +214,19 @@
     margin: 6px auto 10px;
 }
 
-.sheet-header {
+.ep-sheet-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
-.sheet-title {
+.ep-sheet-title {
     font-size: 16px;
     font-weight: 900;
     color: #0f172a;
 }
 
-.sheet-close {
+.ep-sheet-close {
     height: 34px;
     padding: 0 12px;
     border-radius: 12px;
@@ -297,13 +237,13 @@
     cursor: pointer;
 }
 
-.sheet-content {
+.ep-sheet-content {
     padding-top: 14px;
     display: grid;
     gap: 14px;
 }
 
-.sheet-row {
+.ep-sheet-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -315,14 +255,14 @@
     font-weight: 800;
 }
 
-.sheet-group {
+.ep-sheet-group {
     padding: 12px 12px;
     border-radius: 14px;
     border: 1px solid rgba(15, 23, 42, 0.10);
     background: rgba(246, 248, 252, 0.6);
 }
 
-.sheet-group-top {
+.ep-sheet-group-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -330,24 +270,24 @@
     color: #0f172a;
 }
 
-.sheet-muted {
+.ep-muted {
     color: #64748b;
     font-weight: 900;
 }
 
-.sheet-range {
+.ep-range {
     width: 100%;
     margin-top: 10px;
 }
 
-.sheet-actions {
+.ep-sheet-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
     padding-top: 6px;
 }
 
-.sheet-reset {
+.ep-reset {
     height: 44px;
     border-radius: 14px;
     border: 1px solid rgba(15, 23, 42, 0.12);
@@ -357,7 +297,7 @@
     cursor: pointer;
 }
 
-.sheet-apply {
+.ep-apply {
     height: 44px;
     border-radius: 14px;
     border: 0;
@@ -367,21 +307,8 @@
     cursor: pointer;
 }
 
-.safe-spacer {
+.ep-safe-bottom {
     position: absolute;
     inset: auto 0 0 0;
     height: env(safe-area-inset-bottom, 0px);
-}
-
-@media (min-width: 900px) {
-    .heybar {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .hey-left {
-        display: block;
-        text-align: right;
-    }
 }

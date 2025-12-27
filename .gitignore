@@ -37,3 +37,8 @@ build/
 # Local databases
 data/*.mv.db
 data/*.trace.db
+
+# Env files
+.env
+.env.*
+!.env.example
