@@ -202,18 +202,29 @@ export default function DriverPage() {
                     >
                         <span
                             style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 10,
-                                background: '#2563eb',
+                                width: 42,
+                                height: 42,
+                                borderRadius: 999,
+                                background: 'rgb(37,99,235)',
                                 display: 'grid',
                                 placeItems: 'center',
                                 color: 'white',
+                                overflow: 'hidden',
                             }}
                             aria-hidden="true"
                         >
-                            <IconPin size={18} />
+                          <img
+                              src="Logo_notext.png"
+                              alt="Logo"
+                              style={{
+                                  width: 41,
+                                  height: 50,
+                                  display: 'block',
+                                  marginLeft: -1,
+                              }}
+                          />
                         </span>
+
                         <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a' }}>EasyPark</div>
                     </div>
 
