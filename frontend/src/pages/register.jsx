@@ -1,25 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/layout'
-import { loginMock } from '../services/session'
+import { loginUser } from '../services/session'
 import '../styles/auth.css'
-
-const ROLE_OPTIONS = [
-    { value: 'DRIVER', label: 'Driver' },
-    { value: 'OWNER', label: 'Owner' },
-    { value: 'BOTH', label: 'Driver + Owner' },
-]
-
-function roleToRoles(value) {
-    if (value === 'BOTH') return ['DRIVER', 'OWNER']
-    return [value]
-}
 
 export default function RegisterPage() {
     const nav = useNavigate()
 
     const [fullName, setFullName] = useState('')
-    const [role, setRole] = useState('DRIVER')
     const [email, setEmail] = useState('')
     const [phone, setPhone] = useState('')
     const [password, setPassword] = useState('')
@@ -47,7 +35,7 @@ export default function RegisterPage() {
             email: email.trim(),
             phone: phone.trim(),
             password,
-            role,
+            role: 'DRIVER',
         }
 
         try {
@@ -74,21 +62,9 @@ export default function RegisterPage() {
                 return
             }
 
-            // token (if backend returns it)
-            const token =
-                (data && (data.token || data.accessToken || data.jwt)) || null
-            if (token) localStorage.setItem('easypark_token', token)
-
-            // Persist user in frontend (so navbar/UI behaves as "logged in")
-            const returnedUser = data?.user
-            loginMock({
-                fullName: returnedUser?.fullName || payload.fullName,
-                roles: roleToRoles(returnedUser?.role || payload.role),
-            })
-
-            // Choose one:
-            // nav('/login')  // if you want user to login after register
-            nav('/') // if you want user logged-in immediately after register
+            const token = data?.token || null
+            loginUser({ user: data?.user, token })
+            nav('/dashboard')
         } catch (err) {
             setError(err?.message ? `Register error: ${err.message}` : 'Register error.')
         }
@@ -100,8 +76,6 @@ export default function RegisterPage() {
                 <div className="auth-card">
                     <h2 className="auth-title">Create your EasyPark account</h2>
                     <p className="auth-subtitle">
-                        Register as a driver, parking owner, or both. (Mock mode for now —
-                        backend registration will be connected later.)
                     </p>
 
                     <form className="auth-form" onSubmit={onSubmit}>
@@ -117,20 +91,8 @@ export default function RegisterPage() {
                                 />
                             </div>
 
-                            <div className="auth-field">
-                                <label>Role</label>
-                                <select
-                                    className="auth-select"
-                                    value={role}
-                                    onChange={(e) => setRole(e.target.value)}
-                                >
-                                    {ROLE_OPTIONS.map((opt) => (
-                                        <option key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            {/* Role removed: users are always DRIVER */}
+                            <div className="auth-field" />
                         </div>
 
                         <div className="auth-field">
@@ -171,19 +133,16 @@ export default function RegisterPage() {
 
                         <div className="auth-actions">
                             <button
-                                className="ep-btn ep-btn-primary"
+                                className="auth-primary"
                                 type="submit"
                                 disabled={!canSubmit}
-                                style={{
-                                    opacity: canSubmit ? 1 : 0.55,
-                                    cursor: canSubmit ? 'pointer' : 'not-allowed',
-                                }}
+                                style={{ opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
                             >
                                 Register
                             </button>
 
                             <button
-                                className="ep-btn"
+                                className="auth-secondary"
                                 type="button"
                                 onClick={() => nav('/login')}
                             >

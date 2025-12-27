@@ -104,3 +104,12 @@
     border-radius: 18px;
     padding: 16px;
 }
+/* Auth/Landing screens (no header) */
+.ep-app-auth {
+    background: #f6f8fc;
+    color: #0f172a;
+}
+
+.ep-main-auth {
+    padding: 0;
+}
