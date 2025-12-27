@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import Layout from '../components/layout/layout'
 import '../styles/driver.css'
 import { mockSpots } from '../mocks/spots'
-import MapView from '../components/map/map.jsx'
+// import MapView from '../components/map/map.jsx'
+import MapComponent from '../components/map/mapComponent';
 
 export default function DriverPage() {
     const [query, setQuery] = useState('')
@@ -34,7 +35,8 @@ export default function DriverPage() {
         <Layout title="Find Parking">
             <div className="driver-grid">
                 <div className="driver-map">
-                    <MapView spots={spots} />
+                    {/* <MapView spots={spots} /> */}
+                    <MapComponent />
                 </div>
 
                 <div className="driver-side">
