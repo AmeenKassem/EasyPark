@@ -235,3 +235,29 @@
     font-weight: 700;
     font-size: 13px;
 }
+/* Mobile: make it feel like a full-screen app */
+@media (max-width: 480px) {
+    .auth-wrap {
+        min-height: 100vh;
+        padding: 0;
+        background: #f6f8fc;
+        align-items: stretch;
+    }
+
+    .auth-card {
+        max-width: none;
+        width: 100%;
+        min-height: 100vh;
+        border-radius: 0;
+        box-shadow: none;
+        border: 0;
+        padding: 72px 18px 22px;
+        margin-top: 160px;
+    }
+
+    .auth-bubble {
+        top: 18px;
+        width: 68px;
+        height: 68px;
+    }
+}
