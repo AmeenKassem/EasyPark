@@ -225,7 +225,7 @@ export default function DriverPage() {
                           />
                         </span>
 
-                        <div style={{ fontWeight: 900, fontSize: 18, color: '#0f172a' }}>EasyPark</div>
+                        <div style={{ fontWeight: 900, fontSize: 18, color: '#0549fa' }}>EasyPark</div>
                     </div>
 
                     <button
