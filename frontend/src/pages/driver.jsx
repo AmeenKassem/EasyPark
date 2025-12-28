@@ -175,7 +175,7 @@ export default function DriverPage() {
             }}
         >
             <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-                <MapComponent key={location.key} spots={spots} />
+                <MapComponent key={location.key} spots={null} />
             </div>
 
             <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>

@@ -1,163 +1,262 @@
-import React, { useState, useEffect } from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
-import axios from 'axios';
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api'
+import axios from 'axios'
 
-// Map size
-const containerStyle = {
-  width: '100%',
-  height: '600px' // Map height on screen
-};
+const containerStyle = { width: '100%', height: '100%' }
+const defaultCenter = { lat: 32.0853, lng: 34.7818 }
 
-// Default center (Tel Aviv) - used if user location is not provided
-const defaultCenter = {
-  lat: 32.0853,
-  lng: 34.7818
-};
-
-// Style for the "My Location" floating button
+// Added: Style for the geolocation button
 const locateBtnStyle = {
-  position: 'absolute',
-  top: '10px',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  zIndex: 10, // Ensure it sits on top of the map
-  backgroundColor: 'white',
-  border: '1px solid #ccc',
-  padding: '10px 20px',
-  borderRadius: '20px',
-  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-  cursor: 'pointer',
-  fontWeight: 'bold',
-  fontSize: '14px'
-};
+    position: 'absolute',
+    top: '145px', // Positioned below the search bar
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10,
+    backgroundColor: 'white',
+    border: '1px solid #ccc',
+    padding: '10px 20px',
+    borderRadius: '20px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '14px',
+}
 
-const MapComponent = () => {
-  const [parkingSpots, setParkingSpots] = useState([]);
-  const [selectedSpot, setSelectedSpot] = useState(null);
-  
-  // State for map center - starts with default, updates on geolocation
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
-
-  // Loading data from your API
-  useEffect(() => {
-    const fetchSpots = async () => {
-      try {
-        // Call to your existing endpoint
-        const response = await axios.get('http://localhost:8080/api/parking-spots/search');
-        
-        // Filter spots that don't have coordinates (lat/lng are null in DB)
-        const validSpots = response.data.filter(spot => spot.lat && spot.lng && spot.active);
-        setParkingSpots(validSpots);
-      } catch (error) {
-        console.error("Error fetching parking spots:", error);
-      }
-    };
-
-    fetchSpots();
-  }, []);
-
-  // Function to handle Geolocation
-  const handleLocateUser = () => {
-    if (navigator.geolocation) {
-      // Browser API to get current position
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setMapCenter({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          alert("Could not retrieve your location. Please ensure location access is allowed.");
-        }
-      );
-    } else {
-      alert("Geolocation is not supported by your browser.");
-    }
-  };
-
-  // Function to open navigation apps
-  const handleNavigate = (lat, lng, app) => {
-    if (app === 'waze') {
-      window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank');
-    } else {
-      // Standard Google Maps link
-      window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
-    }
-  };
-
-  return (
-    <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}>
-      
-      {/* Wrapper div to position the button absolutely over the map */}
-      <div style={{ position: 'relative' }}>
-        
-        {/* The "My Location" Button */}
-        <button 
-          onClick={handleLocateUser}
-          style={locateBtnStyle}
-        >
-          📍 My Location
-        </button>
-
-        <GoogleMap
-          mapContainerStyle={containerStyle}
-          center={mapCenter} // Dynamic center based on state
-          zoom={13}
-        >
-          {parkingSpots.map((spot) => (
-            <Marker
-              key={spot.id}
-              // Using fields as defined in ParkingResponse.java
-              position={{ lat: spot.lat, lng: spot.lng }} 
-              onClick={() => setSelectedSpot(spot)}
-            />
-          ))}
-
-          {selectedSpot && (
-            <InfoWindow
-              position={{ lat: selectedSpot.lat, lng: selectedSpot.lng }}
-              onCloseClick={() => setSelectedSpot(null)}
-            >
-              {/* InfoWindow Content - English Only */}
-              <div style={{ textAlign: 'left', minWidth: '200px' }}>
-                <h3 style={{ margin: '0 0 10px 0' }}>Parking at {selectedSpot.location}</h3>
-                <p><strong>Price:</strong> {selectedSpot.pricePerHour} ₪/hr</p>
-                <p><strong>Covered:</strong> {selectedSpot.covered ? 'Yes ✅' : 'No ❌'}</p>
-                
-                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                  <button
-                    onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'waze')}
-                    style={btnStyleWaze}
-                  >
-                    Waze 🚙
-                  </button>
-                  <button
-                    onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'google')}
-                    style={btnStyleGoogle}
-                  >
-                    Maps 📍
-                  </button>
-                </div>
-              </div>
-            </InfoWindow>
-          )}
-        </GoogleMap>
-      </div>
-    </LoadScript>
-  );
-};
-
-// Button styles for InfoWindow
 const btnStyleWaze = {
-  backgroundColor: '#33ccff', color: 'white', border: 'none', 
-  padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', flex: 1
-};
+    backgroundColor: '#33ccff',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    flex: 1,
+    fontWeight: 800,
+}
 
 const btnStyleGoogle = {
-  backgroundColor: '#4285F4', color: 'white', border: 'none', 
-  padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', flex: 1
-};
+    backgroundColor: '#4285F4',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    flex: 1,
+    fontWeight: 800,
+}
 
-export default MapComponent;
+export default function MapComponent({
+                                         spots = null,
+                                         center = defaultCenter,
+                                         zoom = 13,
+                                         onSpotClick = null,
+                                     }) {
+    const mapRef = useRef(null)
+    const [apiSpots, setApiSpots] = useState([])
+    const [selectedSpot, setSelectedSpot] = useState(null)
+    
+    // Added: State to control map center dynamically
+    const [mapCenter, setMapCenter] = useState(center)
+
+    const { isLoaded, loadError } = useJsApiLoader({
+        id: 'easypark-google-maps',
+        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
+    })
+
+    // Update map center if the prop changes
+    useEffect(() => {
+        setMapCenter(center)
+    }, [center])
+
+    useEffect(() => {
+        // Only fetch from DB if spots prop is NOT provided
+        if (Array.isArray(spots)) return
+
+        const fetchSpots = async () => {
+            try {
+                const res = await axios.get('http://localhost:8080/api/parking-spots/search')
+                const valid = (res.data || []).filter((s) => s?.lat != null && s?.lng != null && s?.active)
+                setApiSpots(valid)
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.error('Error fetching parking spots:', e)
+                setApiSpots([])
+            }
+        }
+
+        fetchSpots()
+    }, [spots])
+    
+    // Function to handle user geolocation
+    const handleLocateUser = () => {
+        // Configuration to prevent timeouts on laptops/Macs
+        const options = {
+            enableHighAccuracy: false, // Critical: Uses WiFi instead of waiting for satellite GPS
+            timeout: 10000,            // Wait up to 10 seconds before failing
+            maximumAge: 0              // Do not use cached location
+        };
+
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const newPos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                
+                // Update the map center state
+                setMapCenter(newPos);
+
+                // Pan and zoom the map to the user's location
+                if (mapRef.current) {
+                    mapRef.current.panTo(newPos);
+                    mapRef.current.setZoom(15); 
+                }
+            },
+            (error) => {
+                console.error("Geolocation error:", error);
+                
+                // Handle specific error codes for better feedback
+                switch(error.code) {
+                    case 1: // PERMISSION_DENIED
+                        alert("Location access denied. Please check your browser or OS settings.");
+                        break;
+                    case 2: // POSITION_UNAVAILABLE
+                        alert("Position unavailable. Please ensure Wi-Fi is enabled.");
+                        break;
+                    case 3: // TIMEOUT
+                        alert("Request timed out. Please try again.");
+                        break;
+                    default:
+                        alert(`Error retrieving location: ${error.message}`);
+                }
+            },
+            options // Pass the configuration object here
+        );
+    };
+
+    const markerSpots = useMemo(() => {
+        const src = Array.isArray(spots) ? spots : apiSpots
+        return (src || []).filter((s) => s?.lat != null && s?.lng != null)
+    }, [spots, apiSpots])
+
+    const options = useMemo(
+        () => ({
+            disableDefaultUI: true,
+            zoomControl: false,
+            fullscreenControl: false,
+            streetViewControl: false,
+            mapTypeControl: false,
+            clickableIcons: false,
+            gestureHandling: 'greedy',
+        }),
+        [],
+    )
+
+    const handleNavigate = (lat, lng, app) => {
+        if (app === 'waze') {
+            window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank')
+        } else {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
+        }
+    }
+
+    const onLoad = (map) => {
+        mapRef.current = map
+        setTimeout(() => {
+            if (window.google?.maps?.event && mapRef.current) {
+                window.google.maps.event.trigger(mapRef.current, 'resize')
+            }
+        }, 120)
+    }
+
+    const onUnmount = () => {
+        mapRef.current = null
+        setSelectedSpot(null)
+    }
+
+    if (loadError) {
+        return <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
+    }
+
+    if (!isLoaded) {
+        return <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
+    }
+
+    return (
+        <div style={{ position: 'absolute', inset: 0 }}>
+            {/* Added: My Location Button */}
+            <button
+                onClick={handleLocateUser}
+                style={locateBtnStyle}
+            >
+                📍 My Location
+            </button>
+
+            <GoogleMap
+                mapContainerStyle={containerStyle}
+                center={mapCenter} // Changed: Use state instead of prop directly
+                zoom={zoom}
+                options={options}
+                onLoad={onLoad}
+                onUnmount={onUnmount}
+            >
+                {markerSpots.map((spot) => (
+                    <Marker
+                        key={spot.id ?? `${spot.lat}-${spot.lng}`}
+                        position={{ lat: Number(spot.lat), lng: Number(spot.lng) }}
+                        onClick={() => {
+                            setSelectedSpot(spot)
+                            if (onSpotClick) onSpotClick(spot)
+                        }}
+                    />
+                ))}
+
+                {selectedSpot && (
+                    <InfoWindow
+                        position={{ lat: Number(selectedSpot.lat), lng: Number(selectedSpot.lng) }}
+                        onCloseClick={() => setSelectedSpot(null)}
+                    >
+                        <div style={{ minWidth: 240 }}>
+                            <h3 style={{ margin: '0 0 10px 0' }}>
+                                {selectedSpot.location ? `Parking at ${selectedSpot.location}` : 'Parking spot'}
+                            </h3>
+
+                            {selectedSpot.pricePerHour != null && (
+                                <p style={{ margin: '6px 0' }}>
+                                    <strong>Price:</strong> ₪{selectedSpot.pricePerHour}/hr
+                                </p>
+                            )}
+
+                            {typeof selectedSpot.covered === 'boolean' && (
+                                <p style={{ margin: '6px 0' }}>
+                                    <strong>Covered:</strong> {selectedSpot.covered ? 'Yes' : 'No'}
+                                </p>
+                            )}
+
+                            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'waze')}
+                                    style={btnStyleWaze}
+                                >
+                                    Waze
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'google')}
+                                    style={btnStyleGoogle}
+                                >
+                                    Maps
+                                </button>
+                            </div>
+                        </div>
+                    </InfoWindow>
+                )}
+            </GoogleMap>
+        </div>
+    )
+}
