@@ -403,4 +403,10 @@ public class UserService {
                 user.getRole() == null ? null : user.getRole().name()
         );
     }
+
+    @Transactional(readOnly = true)
+    public User getUserEntity(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
 }

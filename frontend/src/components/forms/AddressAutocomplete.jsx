@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { LoadScript, Autocomplete } from '@react-google-maps/api';
-
-// Defined outside to prevent infinite reloads
-const libraries = ["places"];
+import { Autocomplete } from '@react-google-maps/api'; 
 
 const AddressAutocomplete = ({ onAddressSelect }) => {
   const [autocomplete, setAutocomplete] = useState(null);
@@ -24,38 +21,32 @@ const AddressAutocomplete = ({ onAddressSelect }) => {
       const lng = place.geometry.location.lng();
       const address = place.formatted_address;
 
-      // Send data to parent
       onAddressSelect({ lat, lng, address });
     }
   };
 
   return (
-    <LoadScript
-      googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
-      libraries={libraries}
-    >
-      <div style={{ marginBottom: '15px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-          Parking Location
-        </label>
-        <Autocomplete
-          onLoad={onLoad}
-          onPlaceChanged={onPlaceChanged}
-        >
-          <input
-            type="text"
-            placeholder="Search address..."
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '8px',
-              border: '1px solid #ccc',
-              fontSize: '16px'
-            }}
-          />
-        </Autocomplete>
-      </div>
-    </LoadScript>
+    <div style={{ marginBottom: '15px' }}>
+      <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+        Parking Location
+      </label>
+      <Autocomplete
+        onLoad={onLoad}
+        onPlaceChanged={onPlaceChanged}
+      >
+        <input
+          type="text"
+          placeholder="Search address..."
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: '8px',
+            border: '1px solid #ccc',
+            fontSize: '16px'
+          }}
+        />
+      </Autocomplete>
+    </div>
   );
 };
 

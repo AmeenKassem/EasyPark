@@ -5,7 +5,7 @@ import axios from 'axios'
 const containerStyle = { width: '100%', height: '100%' }
 const defaultCenter = { lat: 32.0853, lng: 34.7818 }
 
-// Added: Style for the geolocation button
+// Style for the geolocation button
 const locateBtnStyle = {
     position: 'absolute',
     top: '145px', // Positioned below the search bar
@@ -53,8 +53,8 @@ export default function MapComponent({
     const mapRef = useRef(null)
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
-    
-    // Added: State to control map center dynamically
+
+    // State to control map center dynamically
     const [mapCenter, setMapCenter] = useState(center)
 
     const { isLoaded, loadError } = useJsApiLoader({
@@ -62,9 +62,15 @@ export default function MapComponent({
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
     })
 
-    // Update map center if the prop changes
+    // --- CRITICAL UPDATE FOR SEARCH ---
+    // Update map center AND Pan to it when the prop changes
     useEffect(() => {
         setMapCenter(center)
+        if (mapRef.current && center) {
+            mapRef.current.panTo(center);
+            // Optional: Zoom in slightly when a specific address is selected
+            // mapRef.current.setZoom(15); 
+        }
     }, [center])
 
     useEffect(() => {
@@ -85,14 +91,13 @@ export default function MapComponent({
 
         fetchSpots()
     }, [spots])
-    
+
     // Function to handle user geolocation
     const handleLocateUser = () => {
-        // Configuration to prevent timeouts on laptops/Macs
         const options = {
-            enableHighAccuracy: false, // Critical: Uses WiFi instead of waiting for satellite GPS
-            timeout: 10000,            // Wait up to 10 seconds before failing
-            maximumAge: 0              // Do not use cached location
+            enableHighAccuracy: false,
+            timeout: 10000,
+            maximumAge: 0
         };
 
         if (!navigator.geolocation) {
@@ -106,35 +111,24 @@ export default function MapComponent({
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
-                
-                // Update the map center state
+
                 setMapCenter(newPos);
 
-                // Pan and zoom the map to the user's location
                 if (mapRef.current) {
                     mapRef.current.panTo(newPos);
-                    mapRef.current.setZoom(15); 
+                    mapRef.current.setZoom(15);
                 }
             },
             (error) => {
                 console.error("Geolocation error:", error);
-                
-                // Handle specific error codes for better feedback
                 switch(error.code) {
-                    case 1: // PERMISSION_DENIED
-                        alert("Location access denied. Please check your browser or OS settings.");
-                        break;
-                    case 2: // POSITION_UNAVAILABLE
-                        alert("Position unavailable. Please ensure Wi-Fi is enabled.");
-                        break;
-                    case 3: // TIMEOUT
-                        alert("Request timed out. Please try again.");
-                        break;
-                    default:
-                        alert(`Error retrieving location: ${error.message}`);
+                    case 1: alert("Location access denied. Please check your browser or OS settings."); break;
+                    case 2: alert("Position unavailable. Please ensure Wi-Fi is enabled."); break;
+                    case 3: alert("Request timed out. Please try again."); break;
+                    default: alert(`Error retrieving location: ${error.message}`);
                 }
             },
-            options // Pass the configuration object here
+            options
         );
     };
 
@@ -160,6 +154,7 @@ export default function MapComponent({
         if (app === 'waze') {
             window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank')
         } else {
+            // Corrected URL for Google Maps navigation
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
@@ -188,7 +183,7 @@ export default function MapComponent({
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
-            {/* Added: My Location Button */}
+            {/* My Location Button */}
             <button
                 onClick={handleLocateUser}
                 style={locateBtnStyle}
@@ -198,7 +193,7 @@ export default function MapComponent({
 
             <GoogleMap
                 mapContainerStyle={containerStyle}
-                center={mapCenter} // Changed: Use state instead of prop directly
+                center={mapCenter}
                 zoom={zoom}
                 options={options}
                 onLoad={onLoad}
