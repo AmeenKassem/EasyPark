@@ -6,6 +6,17 @@ export function getCurrentUser() {
     return raw ? JSON.parse(raw) : null
 }
 
+const AUTH_EVENT = 'easypark_auth_changed'
+
+export function notifyAuthChanged() {
+    window.dispatchEvent(new Event(AUTH_EVENT))
+}
+
+export function subscribeAuthChanged(handler) {
+    window.addEventListener(AUTH_EVENT, handler)
+    return () => window.removeEventListener(AUTH_EVENT, handler)
+}
+
 export function isAuthenticated() {
     return !!getCurrentUser()
 }
@@ -25,7 +36,16 @@ export function loginUser({ user, token }) {
     if (token) localStorage.setItem(TOKEN_KEY, token)
 
     const role = user?.role
-    const roles = role ? [role] : ['DRIVER']
+    let roles = ['DRIVER'] // default
+
+    if (role === 'OWNER') {
+        roles = ['OWNER']
+    } else if (role === 'BOTH') {
+        roles = ['DRIVER', 'OWNER']
+    } else if (role === 'DRIVER') {
+        roles = ['DRIVER']
+    }
+
 
     localStorage.setItem(
         STORAGE_KEY,
@@ -36,9 +56,13 @@ export function loginUser({ user, token }) {
             roles,
         })
     )
+    notifyAuthChanged()
+
 }
 
 export function logout() {
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(TOKEN_KEY)
+    notifyAuthChanged()
+
 }

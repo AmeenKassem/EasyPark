@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import AddressAutocomplete from '../components/forms/AddressAutocomplete'; 
+import AddressAutocomplete from '../components/forms/AddressAutocomplete';
+function normalizeLocalDateTime(v) {
+    if (!v) return null;
+    return v.length === 16 ? `${v}:00` : v; // "YYYY-MM-DDTHH:mm" -> add ":00"
+}
 
-const CreateParkingPage = () => {
-  const navigate = useNavigate();
+const CreateParkingPage = ({ onClose, onCreated }) => {
   
   // State matches your CreateParkingRequest.java DTO
   const [formData, setFormData] = useState({
@@ -44,8 +46,8 @@ const CreateParkingPage = () => {
     setMessage('');
 
     // 1. Validate coordinates
-    if (!formData.lat || !formData.lng) {
-      setMessage('Please select a valid address from the list.');
+      if (formData.lat == null || formData.lng == null) {
+          setMessage('Please select a valid address from the list.');
       setLoading(false);
       return;
     }
@@ -68,30 +70,49 @@ const CreateParkingPage = () => {
         pricePerHour: parseFloat(formData.pricePerHour),
         covered: formData.covered,
         // Send dates only if populated
-        availableFrom: formData.availableFrom || null,
-        availableTo: formData.availableTo || null
+          availableFrom: normalizeLocalDateTime(formData.availableFrom),
+          availableTo: normalizeLocalDateTime(formData.availableTo)
+
       };
 
       // 4. Send Request
-      await axios.post('http://localhost:8080/api/parking-spots', payload, {
-        headers: {
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+        await axios.post(`${API_BASE}/api/parking-spots`, payload, {
+
+            headers: {
           'Authorization': `Bearer ${token}`, // Crucial for @PreAuthorize
           'Content-Type': 'application/json'
         }
       });
 
-      setMessage('Success! Parking spot created.');
-      // Optional: Navigate to "My Spots" after delay
-      setTimeout(() => navigate('/driver'), 1500); 
-      
+        setMessage('Success! Parking spot created.');
+        setTimeout(() => {
+            onCreated?.();   // optional: let OwnerPage refresh list
+            onClose?.();     // close modal
+        }, 700);
+
+
     } catch (error) {
-      console.error("Create parking error:", error);
-      if (error.response && error.response.status === 403) {
-        setMessage('Permission denied. Are you registered as a parking owner?');
-      } else {
-        setMessage('Error creating parking spot. Try again.');
-      }
+        console.error("Create parking error:", error);
+
+        const status = error?.response?.status;
+        const apiMsg =
+            error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            null;
+
+        if (status === 401) {
+            setMessage('You are not logged in (token missing/expired). Please login again.');
+        } else if (status === 403) {
+            setMessage('Permission denied. You must have OWNER role to create a parking spot.');
+        } else if (status === 400) {
+            setMessage(apiMsg ? `Validation error: ${apiMsg}` : 'Validation error. Check the form fields.');
+        } else {
+            setMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot. Try again.');
+        }
     } finally {
+
       setLoading(false);
     }
   };
@@ -166,25 +187,47 @@ const CreateParkingPage = () => {
         </div>
 
         {/* Submit */}
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '14px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1,
-            marginTop: '20px'
-          }}
-        >
-          {loading ? 'Processing...' : 'Create Parking Spot'}
-        </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                  type="button"
+                  onClick={() => onClose?.()}
+                  disabled={loading}
+                  style={{
+                      flex: 1,
+                      padding: '14px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#111827',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      opacity: loading ? 0.7 : 1,
+                  }}
+              >
+                  Cancel
+              </button>
+
+              <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                      flex: 1,
+                      padding: '14px',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      opacity: loading ? 0.7 : 1,
+                  }}
+              >
+                  {loading ? 'Processing...' : 'Create Parking Spot'}
+              </button>
+          </div>
+
 
         {/* Message Banner */}
         {message && (
