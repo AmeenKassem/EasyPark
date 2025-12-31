@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
             const token = data?.token || null
             loginUser({ user: data?.user, token })
-            nav('/dashboard')
+            nav('/driver')
         } catch (err) {
             setError(err?.message ? `Register error: ${err.message}` : 'Register error.')
         }
