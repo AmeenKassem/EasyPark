@@ -7,8 +7,7 @@ import { router } from './app/router.jsx'
 import './index.css'
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-
-const libraries = ["places"];
+const libraries = ['places']
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
@@ -16,11 +15,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <LoadScript
                 googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
                 libraries={libraries}
-                loadingElement={<div>Loading Maps...</div>} // אופציונלי: מראה טעינה עד שהסקריפט מוכן
+                loadingElement={<div>Loading Maps...</div>}
             >
                 <RouterProvider router={router} />
             </LoadScript>
-            <RouterProvider router={router} />
         </GoogleOAuthProvider>
     </React.StrictMode>
 )

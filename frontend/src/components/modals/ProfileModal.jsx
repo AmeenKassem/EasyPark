@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { notifyAuthChanged } from '../../services/session'
+import { useNavigate, useLocation } from 'react-router-dom'
+
 
 const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
     const [formData, setFormData] = useState({
@@ -9,7 +12,9 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    
+    const nav = useNavigate()
+    const location = useLocation()
+
     // State handling for messages
     const [feedback, setFeedback] = useState({ message: '', isError: false });
 
@@ -50,8 +55,24 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
+    const normalizeUserForFrontend = (apiUser, fallbackRole) => {
+        const role = apiUser?.role ?? fallbackRole ?? 'DRIVER'
+        const roles =
+            role === 'BOTH' ? ['DRIVER', 'OWNER']
+                : role === 'OWNER' ? ['OWNER']
+                    : ['DRIVER']
 
-const handleSave = async () => {
+        return {
+            id: apiUser?.id,
+            fullName: apiUser?.fullName ?? '',
+            email: apiUser?.email,
+            phone: apiUser?.phone ?? '',
+            role,      // keep if you want
+            roles,     // IMPORTANT: frontend uses this
+        }
+    }
+
+    const handleSave = async () => {
         setSaving(true);
         setFeedback({ message: '', isError: false });
         
@@ -61,41 +82,54 @@ const handleSave = async () => {
         try {
             // 1. Update Profile (Name & Phone)
             // The server now returns a new token in the response
+// 1) Update Profile
             const profileRes = await axios.put('http://localhost:8080/api/users/me', {
                 fullName: formData.fullName,
                 phone: formData.phone
-            }, config);
+            }, config)
 
-            // Handle Token Refresh for Profile Update
             if (profileRes.data.token) {
-                token = profileRes.data.token;
-                localStorage.setItem('easypark_token', token);
-                // Update config with new token for the next request
-                config = { headers: { Authorization: `Bearer ${token}` } };
-            }
-            if (profileRes.data.user) {
-                localStorage.setItem('easypark_user', JSON.stringify(profileRes.data.user));
+                token = profileRes.data.token
+                localStorage.setItem('easypark_token', token)
+                config = { headers: { Authorization: `Bearer ${token}` } }
             }
 
-            // 2. Update Role (Separate Request)
+// 2) Update Role
             const roleRes = await axios.put('http://localhost:8080/api/users/me/role', {
                 role: formData.role
-            }, config);
+            }, config)
 
-            // Handle Token Refresh for Role Update
             if (roleRes.data.token) {
-                localStorage.setItem('easypark_token', roleRes.data.token);
-            }
-            if (roleRes.data.user) {
-                localStorage.setItem('easypark_user', JSON.stringify(roleRes.data.user));
+                localStorage.setItem('easypark_token', roleRes.data.token)
             }
 
-            setFeedback({ message: 'Profile updated successfully!', isError: false });
-            
+// Choose the freshest user object you have (roleRes usually best)
+            const apiUser = roleRes.data.user ?? profileRes.data.user
+
+// Normalize into the shape your frontend expects (roles array!)
+            const updatedUser = normalizeUserForFrontend(apiUser, formData.role)
+
+// Persist for Layout/Driver/etc.
+            localStorage.setItem('easypark_user', JSON.stringify(updatedUser))
+            notifyAuthChanged()
+            // Redirect rule:
+// DRIVER -> /driver, OWNER -> /owner, BOTH -> stay
+            if (updatedUser.role === 'DRIVER') {
+                nav('/driver', { replace: true })
+            } else if (updatedUser.role === 'OWNER') {
+                nav('/owner', { replace: true })
+            } else {
+                // BOTH: stay on same page
+                // no navigation
+            }
+
+            setFeedback({ message: 'Profile updated successfully!', isError: false })
+
             setTimeout(() => {
-                if (onUpdateSuccess) onUpdateSuccess();
-                onClose();
-            }, 1000);
+                onUpdateSuccess?.(updatedUser)   // IMPORTANT: pass user back to Layout
+                onClose()
+            }, 500)
+
 
         } catch (error) {
             console.error("Update error details:", error.response || error);

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import Layout from '../components/layout/layout'
-import { loginUser } from '../services/session'
+import { getCurrentUser, loginUser } from '../services/session'
+
 import '../styles/auth.css'
 
 function MailIcon() {
@@ -48,6 +49,12 @@ export default function LoginPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
+    function redirectAfterLogin() {
+        const u = getCurrentUser()
+        const isDriver = u?.roles?.includes('DRIVER')
+        nav(isDriver ? '/driver' : '/owner')
+    }
+
 
     const canSubmit = useMemo(() => {
         return email.trim().length >= 5 && password.length >= 6
@@ -75,7 +82,8 @@ export default function LoginPage() {
             }
 
             loginUser({ user: data?.user, token: data?.token })
-            nav('/driver')
+            redirectAfterLogin()
+
         } catch (err) {
             setError(err?.message ? `Login error: ${err.message}` : 'Login error.')
         }
@@ -97,7 +105,8 @@ export default function LoginPage() {
             }
 
             loginUser({ user: data?.user, token: data?.token })
-            nav('/driver')
+            redirectAfterLogin()
+
         } catch (err) {
             setError(err?.message ? `Google login error: ${err.message}` : 'Google login error.')
         }
