@@ -10,6 +10,8 @@ public class UpdateUserProfileRequest {
     @Size(max = 30, message = "phone must be at most 30 characters")
     private String phone;
 
+    @Size(max = 30, message = "email must be at most 30 characters")
+    private String email;
     public UpdateUserProfileRequest() {}
 
     public String getFullName() {
@@ -27,4 +29,7 @@ public class UpdateUserProfileRequest {
     public void setPhone(String phone) {
         this.phone = phone;
     }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 }

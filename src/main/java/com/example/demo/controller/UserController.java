@@ -16,6 +16,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.example.demo.dto.ChangePasswordRequest;
+
 
 @RestController
 @RequestMapping("/api/users")
@@ -46,6 +48,25 @@ public class UserController {
         log.info("action=user_me success userId={}", userId);
         return ResponseEntity.ok(out);
     }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<AuthResponse> changeMyPassword(Authentication auth,
+                                                         @Valid @RequestBody ChangePasswordRequest req) {
+        Long userId = currentUserId(auth);
+        log.info("action=user_change_password start userId={}", userId);
+
+        // 1) Change password in DB
+        UserSummary updatedSummary = userService.changePassword(userId, req);
+
+        // 2) Refresh token (same logic like updateMe)
+        User userEntity = userService.getUserEntity(userId);
+        String newToken = jwtService.generateToken(userEntity);
+
+        log.info("action=user_change_password success userId={} token_refreshed=true", userId);
+        return ResponseEntity.ok(new AuthResponse("Password updated successfully", newToken, updatedSummary));
+    }
+
+
 
     // @PutMapping("/me")
     // public ResponseEntity<UserSummary> updateMe(Authentication auth,
