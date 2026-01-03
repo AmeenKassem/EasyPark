@@ -1,11 +1,6 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.GoogleLoginRequest;
-import com.example.demo.dto.LoginRequest;
-import com.example.demo.dto.RegisterRequest;
-import com.example.demo.dto.UpdateUserProfileRequest;
-import com.example.demo.dto.UpdateUserRoleRequest;
-import com.example.demo.dto.UserSummary;
+import com.example.demo.dto.*;
 import com.example.demo.model.AuthProvider;
 import com.example.demo.model.PasswordResetToken;
 import com.example.demo.model.Role;
@@ -173,9 +168,71 @@ public class UserService {
             user.setPhone(phone.isEmpty() ? null : phone);
         }
 
+        if (req.getEmail() != null) {
+            String email = req.getEmail().trim();
+
+            // Allow clearing email
+            if (email.isEmpty()) {
+                user.setEmail(null);
+            } else {
+                // Basic sanity validation (do not rely ONLY on this; add @Email in DTO too)
+                String normalized = email.toLowerCase();
+                if (!normalized.contains("@") || normalized.startsWith("@") || normalized.endsWith("@")) {
+                    throw new IllegalArgumentException("Invalid email");
+                }
+
+                // If changed -> ensure uniqueness
+                String current = user.getEmail() == null ? null : user.getEmail().trim().toLowerCase();
+                if (current == null || !current.equals(normalized)) {
+                    // if you have findByEmailIgnoreCase, prefer it to exclude self by id
+                    boolean taken = userRepository.existsByEmail(normalized);
+                    if (taken) {
+                        throw new IllegalArgumentException("Email already in use");
+                    }
+                    user.setEmail(normalized);
+                }
+            }
+        }
+
         User saved = userRepository.save(user);
         return toSummary(saved);
     }
+
+    @Transactional
+    public UserSummary changePassword(Long userId, ChangePasswordRequest req) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        String current = (req.getCurrentPassword() == null) ? "" : req.getCurrentPassword();
+        String next = (req.getNewPassword() == null) ? "" : req.getNewPassword();
+
+        if (current.isBlank()) {
+            throw new IllegalArgumentException("currentPassword cannot be empty");
+        }
+        if (next.isBlank()) {
+            throw new IllegalArgumentException("newPassword cannot be empty");
+        }
+        if (next.length() < 8) {
+            throw new IllegalArgumentException("newPassword must be at least 8 characters");
+        }
+
+        // IMPORTANT: verify current password
+        if (!passwordEncoder.matches(current, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        // Prevent same password
+        if (passwordEncoder.matches(next, user.getPasswordHash())) {
+            throw new IllegalArgumentException("New password must be different");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(next));
+        User saved = userRepository.save(user);
+
+        return toSummary(saved);
+    }
+
+
 
     @Transactional
     public UserSummary updateRole(Long userId, UpdateUserRoleRequest req) {

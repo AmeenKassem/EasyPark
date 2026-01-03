@@ -79,7 +79,7 @@ export default function RegisterPage() {
                     </p>
 
                     <form className="auth-form" onSubmit={onSubmit}>
-                        <div className="auth-row-two">
+
                             <div className="auth-field">
                                 <label>Full name</label>
                                 <input
@@ -93,7 +93,7 @@ export default function RegisterPage() {
 
                             {/* Role removed: users are always BOTH */}
                             <div className="auth-field" />
-                        </div>
+
 
                         <div className="auth-field">
                             <label>Email</label>

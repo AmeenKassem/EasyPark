@@ -7,6 +7,10 @@ import RegisterPage from '../pages/register.jsx'
 import ResetPasswordPage from '../pages/ResetPasswordPage.jsx'
 import CreateParkingPage from '../pages/CreateParkingPage.jsx'
 import NoPermissionPage from '../pages/NoPermissionPage.jsx'
+import ManageSpotsPage from '../pages/manageSpots.jsx'
+import ManageProfilePage from '../pages/manage-profile'
+
+
 
 import RequireRole from '../components/auth/RequireRole.jsx'
 
@@ -43,6 +47,26 @@ export const router = createBrowserRouter([
             </RequireRole>
         ),
     },
+
+    {
+        path: '/manage-spots',
+        element: (
+            <RequireRole allow={['OWNER']}>
+                <ManageSpotsPage />
+            </RequireRole>
+        ),
+    },
+
+    {
+        path: '/manage-profile',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <ManageProfilePage />
+            </RequireRole>
+        ),
+    },
+
+
 
     {
         path: '/create-parking',

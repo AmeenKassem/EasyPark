@@ -347,7 +347,7 @@ export default function DriverPage() {
                                 type="button"
                                 onClick={() => {
                                     setProfileOpen(false)
-                                    nav('/owner')
+                                    nav('/manage-spots')
                                 }}
                                 style={{
                                     width: '100%',
@@ -374,7 +374,7 @@ export default function DriverPage() {
                             type="button"
                             onClick={() => {
                                 setProfileModalOpen(true)
-                                setProfileOpen(false)
+                                nav('/manage-profile')
                             }}
                             style={{
                                 width: '100%',

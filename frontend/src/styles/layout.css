@@ -1,7 +1,7 @@
 /* Desktop-first layout */
 .ep-app {
     min-height: 100vh;
-    background: #0b1020;
+    background: #ffffff;
     color: #ffffff;
     width: 100vw;
 }
@@ -16,8 +16,9 @@
     position: sticky;
     top: 0;
     backdrop-filter: blur(10px);
-    background: rgba(11, 16, 32, 0.85);
+    background: #ffffff;
     z-index: 10;
+    color: #0f172a;
 }
 
 .ep-brand {
@@ -102,6 +103,7 @@
 .ep-title {
     margin: 0 0 12px 0;
     font-size: 28px;
+    color: #0b1220;
 }
 
 .ep-card {
@@ -113,7 +115,7 @@
 /* Auth/Landing screens (no header) */
 .ep-app-auth {
     background: #f6f8fc;
-    color: #0f172a;
+    color: #ffffff;
 }
 
 .ep-main-auth {
@@ -123,4 +125,22 @@
 .ep-modal * {
     color: #0f172a;
 }
+.ep-profile-icon-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 0;
+    background: #2563eb;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+}
+
+.ep-brand-logo {
+    height: 38px !important;
+    width: 38px !important;
+}
+
 
