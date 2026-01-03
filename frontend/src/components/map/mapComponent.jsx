@@ -24,7 +24,7 @@ const locateBtnStyle = {
 
 const btnStyleWaze = {
     backgroundColor: '#33ccff',
-    color: '#fff',
+    color: 'black',
     border: 'none',
     padding: '8px 12px',
     borderRadius: '10px',
@@ -35,7 +35,7 @@ const btnStyleWaze = {
 
 const btnStyleGoogle = {
     backgroundColor: '#4285F4',
-    color: '#fff',
+    color: 'black',
     border: 'none',
     padding: '8px 12px',
     borderRadius: '10px',
@@ -216,18 +216,18 @@ export default function MapComponent({
                         onCloseClick={() => setSelectedSpot(null)}
                     >
                         <div style={{ minWidth: 240 }}>
-                            <h3 style={{ margin: '0 0 10px 0' }}>
+                            <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
                                 {selectedSpot.location ? `Parking at ${selectedSpot.location}` : 'Parking spot'}
                             </h3>
 
                             {selectedSpot.pricePerHour != null && (
-                                <p style={{ margin: '6px 0' }}>
+                                <p style={{ margin: '6px 0', color: 'black' }}>
                                     <strong>Price:</strong> ₪{selectedSpot.pricePerHour}/hr
                                 </p>
                             )}
 
                             {typeof selectedSpot.covered === 'boolean' && (
-                                <p style={{ margin: '6px 0' }}>
+                                <p style={{ margin: '6px 0', color: 'black' }}>
                                     <strong>Covered:</strong> {selectedSpot.covered ? 'Yes' : 'No'}
                                 </p>
                             )}

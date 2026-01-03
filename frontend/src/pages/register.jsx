@@ -35,7 +35,7 @@ export default function RegisterPage() {
             email: email.trim(),
             phone: phone.trim(),
             password,
-            role: 'DRIVER',
+            role: 'BOTH',
         }
 
         try {
@@ -91,7 +91,7 @@ export default function RegisterPage() {
                                 />
                             </div>
 
-                            {/* Role removed: users are always DRIVER */}
+                            {/* Role removed: users are always BOTH */}
                             <div className="auth-field" />
                         </div>
 

@@ -51,7 +51,7 @@ class UserServiceTests {
                 "test@example.com",
                 "050-0000000",
                 "Password1!",
-                Role.DRIVER
+                Role.BOTH
         );
 
         User user = userService.register(request);
@@ -59,7 +59,7 @@ class UserServiceTests {
         assertNotNull(user.getId(), "User ID should be generated");
         assertEquals("Test User", user.getFullName());
         assertEquals("test@example.com", user.getEmail());
-        assertEquals(Role.DRIVER, user.getRole());
+        assertEquals(Role.BOTH, user.getRole());
 
         // password must be hashed
         assertNotEquals("Password1!", user.getPasswordHash());
@@ -76,7 +76,7 @@ class UserServiceTests {
                 "duplicate@example.com",
                 "050-1111111",
                 "Password1!",
-                Role.OWNER
+                Role.BOTH
         );
         userService.register(request);
 
@@ -120,7 +120,7 @@ class UserServiceTests {
                 "wrongpass@example.com",
                 "050-3333333",
                 "Password1!",
-                Role.DRIVER
+                Role.BOTH
         );
         userService.register(request);
 
@@ -143,7 +143,7 @@ class UserServiceTests {
                 "reset@example.com",
                 "050-4444444",
                 "Original1!",
-                Role.OWNER
+                Role.BOTH
         );
         User user = userService.register(request);
         String oldHash = user.getPasswordHash();

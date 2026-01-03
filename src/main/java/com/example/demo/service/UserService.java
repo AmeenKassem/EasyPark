@@ -94,7 +94,7 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
-        user.setRole(role);
+        user.setRole(Role.BOTH);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
         User saved = userRepository.save(user);
@@ -357,7 +357,7 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone("");
-        user.setRole(Role.DRIVER);
+        user.setRole(Role.BOTH);
 
         user.setAuthProvider(AuthProvider.GOOGLE);
         user.setProviderUserId(request.getGoogleUserId());
