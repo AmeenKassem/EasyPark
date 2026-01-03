@@ -176,20 +176,6 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
                             />
                         </div>
 
-                        <div>
-                            <label style={labelStyle}>Role</label>
-                            <select
-                                name="role"
-                                value={formData.role}
-                                onChange={handleChange}
-                                style={inputStyle}
-                            >
-                                <option value="DRIVER">Driver (Look for parking)</option>
-                                <option value="OWNER">Owner (Rent out spots)</option>
-                                <option value="BOTH">Both (Driver & Owner)</option>
-                            </select>
-                        </div>
-
                         {/* Feedback Message */}
                         {feedback.message && (
                             <div style={{ 
