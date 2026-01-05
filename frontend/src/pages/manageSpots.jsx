@@ -58,6 +58,16 @@ export default function ManageSpotsPage() {
     const [bookingsLoading, setBookingsLoading] = useState(false)
     const [bookingsError, setBookingsError] = useState('')
     const [bookingSavingId, setBookingSavingId] = useState(null)
+    // Edit modal state
+    const [editOpen, setEditOpen] = useState(false)
+    const [editSpot, setEditSpot] = useState(null)
+    const [editSaving, setEditSaving] = useState(false)
+    const [editError, setEditError] = useState('')
+    const [editForm, setEditForm] = useState({
+        pricePerHour: '',
+        covered: false,
+        active: true,
+    })
 
 
     const [spots, setSpots] = useState([])
@@ -150,6 +160,51 @@ export default function ManageSpotsPage() {
     useEffect(() => {
         fetchMySpots()
     }, [])
+    const openEditFor = (spot) => {
+        setEditError('')
+        setEditSpot(spot)
+        setEditForm({
+            pricePerHour: String(spot.pricePerHour ?? ''),
+            covered: !!spot.covered,
+            active: !!spot.active,
+        })
+        setEditOpen(true)
+    }
+
+    const saveEdit = async () => {
+        if (!editSpot) return
+        setEditSaving(true)
+        setEditError('')
+        setError('')
+
+        try {
+            const payload = normalizeSpotForUpdate(editSpot, {
+                pricePerHour: parseFloat(editForm.pricePerHour),
+                covered: !!editForm.covered,
+                active: !!editForm.active,
+            })
+
+            await axios.put(`${API_BASE}/api/parking-spots/${editSpot.id}`, payload, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders(),
+                },
+            })
+
+            setEditOpen(false)
+            setEditSpot(null)
+            await fetchMySpots()
+        } catch (e) {
+            const msg =
+                e?.response?.data?.message ||
+                e?.response?.data ||
+                e?.message ||
+                'Failed to update the spot.'
+            setEditError(String(msg))
+        } finally {
+            setEditSaving(false)
+        }
+    }
 
     const toggleActive = async (spot) => {
         setError('')
@@ -194,6 +249,7 @@ export default function ManageSpotsPage() {
                             <div className="ep-ms-icon">📅</div>
                             <div>
                                 <h1 className="ep-ms-h1">My Parking Spots</h1>
+
                                 <div className="ep-ms-subtitle">Manage your listings and bookings</div>
                             </div>
                         </div>
@@ -389,10 +445,15 @@ export default function ManageSpotsPage() {
                                                     {spot.active ? 'Deactivate' : 'Activate'}
                                                 </button>
 
-                                                <button className="ep-ms-btn" onClick={() => setDetailsSpot(spot)}>
+                                                <button className="ep-ms-btn" onClick={() => openEditFor(spot)}>
+                                                    Edit
+                                                </button>
+
+                                                <button className="ep-ms-btn ep-ms-btnWide" onClick={() => setDetailsSpot(spot)}>
                                                     View Details
                                                 </button>
                                             </div>
+
                                         </div>
                                     )
                                 })}
@@ -410,6 +471,67 @@ export default function ManageSpotsPage() {
                                 fetchMySpots()
                             }}
                         />
+                    </Modal>
+                )}
+                {editOpen && (
+                    <Modal onClose={() => setEditOpen(false)}>
+                        <div style={{ padding: 16, width: 'min(520px, 96vw)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                <h2 style={{ margin: 0 }}>Edit Spot</h2>
+                                <button className="ep-ms-btn" onClick={() => setEditOpen(false)} disabled={editSaving}>
+                                    Close
+                                </button>
+                            </div>
+
+                            <div style={{ height: 10 }} />
+
+                            {editError && (
+                                <div className="ep-ms-error" style={{ marginBottom: 10 }}>
+                                    {editError}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'grid', gap: 12 }}>
+                                <div>
+                                    <div style={{ fontWeight: 800, marginBottom: 6 }}>Price per hour (₪)</div>
+                                    <input
+                                        value={editForm.pricePerHour}
+                                        onChange={(e) => setEditForm((p) => ({ ...p, pricePerHour: e.target.value }))}
+                                        type="number"
+                                        min="1"
+                                        step="0.5"
+                                        style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                                    />
+                                </div>
+
+                                <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontWeight: 800 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={editForm.covered}
+                                        onChange={(e) => setEditForm((p) => ({ ...p, covered: e.target.checked }))}
+                                    />
+                                    Covered
+                                </label>
+
+                                <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontWeight: 800 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={editForm.active}
+                                        onChange={(e) => setEditForm((p) => ({ ...p, active: e.target.checked }))}
+                                    />
+                                    Active
+                                </label>
+
+                                <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                                    <button className="ep-ms-btn" onClick={() => setEditOpen(false)} disabled={editSaving} style={{ flex: 1 }}>
+                                        Cancel
+                                    </button>
+                                    <button className="ep-ms-btn" onClick={saveEdit} disabled={editSaving} style={{ flex: 1, fontWeight: 900 }}>
+                                        {editSaving ? 'Saving…' : 'Save'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </Modal>
                 )}
 
