@@ -23,6 +23,25 @@ function IconUser({ size = 18 }) {
         </svg>
     )
 }
+function IconLock({ size = 18 }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="M7.5 11V8.8A4.5 4.5 0 0 1 12 4.3a4.5 4.5 0 0 1 4.5 4.5V11"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+            />
+            <path
+                d="M7.2 11h9.6c.9 0 1.7.8 1.7 1.7v6.1c0 .9-.8 1.7-1.7 1.7H7.2c-.9 0-1.7-.8-1.7-1.7v-6.1c0-.9.8-1.7 1.7-1.7Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+            />
+        </svg>
+    )
+}
+
 
 export default function Layout({ title, children }) {
     const nav = useNavigate()
@@ -127,6 +146,19 @@ export default function Layout({ title, children }) {
                                         >
                                             Manage Profile
                                         </button>
+                                        <button
+                                            type="button"
+                                            className="ep-btn"
+                                            style={{ width: '100%', justifyContent: 'flex-start', gap: 8 }}
+                                            onClick={() => {
+                                                setUserMenuOpen(false)
+                                                nav('/change-password')
+                                            }}
+                                        >
+                                            <IconLock size={18} />
+                                            Change Password
+                                        </button>
+
 
                                         <button
                                             type="button"
