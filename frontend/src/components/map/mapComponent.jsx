@@ -54,6 +54,7 @@ export default function MapComponent({
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
 
+    const [myLocation, setMyLocation] = useState(null)
     // State to control map center dynamically
     const [mapCenter, setMapCenter] = useState(center)
 
@@ -112,6 +113,7 @@ export default function MapComponent({
                     lng: position.coords.longitude
                 };
 
+                setMyLocation(newPos);
                 setMapCenter(newPos);
 
                 if (mapRef.current) {
@@ -199,6 +201,14 @@ export default function MapComponent({
                 onLoad={onLoad}
                 onUnmount={onUnmount}
             >
+                {myLocation && (
+                    <Marker
+                        position={myLocation}
+                        // Optional: if you want it to stand out, you can add a custom icon later
+                        // icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }}
+                    />
+                )}
+
                 {markerSpots.map((spot) => (
                     <Marker
                         key={spot.id ?? `${spot.lat}-${spot.lng}`}
