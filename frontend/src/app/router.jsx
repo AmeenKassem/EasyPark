@@ -9,7 +9,7 @@ import CreateParkingPage from '../pages/CreateParkingPage.jsx'
 import NoPermissionPage from '../pages/NoPermissionPage.jsx'
 import ManageSpotsPage from '../pages/manageSpots.jsx'
 import ManageProfilePage from '../pages/manage-profile'
-
+import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
 
 
 import RequireRole from '../components/auth/RequireRole.jsx'
@@ -65,6 +65,15 @@ export const router = createBrowserRouter([
             </RequireRole>
         ),
     },
+    {
+        path: '/change-password',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <ChangePasswordPage />
+            </RequireRole>
+        ),
+    },
+
 
 
 
