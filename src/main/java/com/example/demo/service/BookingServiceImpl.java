@@ -53,6 +53,14 @@ public class BookingServiceImpl implements BookingService {
         if (!parking.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking spot is not active");
         }
+        // Enforce owner's availability window (if defined)
+        if (parking.getAvailableFrom() != null && req.getStartTime().isBefore(parking.getAvailableFrom())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start time is before the parking availability window");
+        }
+        if (parking.getAvailableTo() != null && req.getEndTime().isAfter(parking.getAvailableTo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End time is after the parking availability window");
+        }
+
 
         User driver = userRepository.findById(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Driver not found"));

@@ -8,6 +8,8 @@ import MapComponent from '../components/map/mapComponent'
 import { logout } from '../services/session'
 import ProfileModal from '../components/modals/ProfileModal';
 import { getCurrentUser , subscribeAuthChanged} from '../services/session'
+import BookParkingModal from '../components/modals/BookParkingModal'
+
 
 // --- ICONS (Same as before) ---
 function IconPin({ size = 18 }) { return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" /><path d="M12 13.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" stroke="currentColor" strokeWidth="1.8" /></svg>) }
@@ -21,6 +23,11 @@ export default function DriverPage() {
     const nav = useNavigate()
     const location = useLocation()
     const [user, setUser] = useState(getCurrentUser())
+    const [bookingOpen, setBookingOpen] = useState(false)
+    const [bookingSpot, setBookingSpot] = useState(null)
+    const [bookingToast, setBookingToast] = useState('')
+
+
 
     useEffect(() => {
         // Re-render DriverPage when auth/user changes
@@ -222,10 +229,14 @@ export default function DriverPage() {
         <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', background: '#0b1220' }}>
             
             <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-                <MapComponent 
-                    key={location.key} 
-                    spots={realSpots} 
-                    center={mapCenter} 
+                <MapComponent
+                    key={location.key}
+                    spots={realSpots}
+                    center={mapCenter}
+                    onSpotClick={(spot) => {
+                        setBookingSpot(spot)
+                        setBookingOpen(true)
+                    }}
                 />
             </div>
 
@@ -369,6 +380,33 @@ export default function DriverPage() {
                                 Manage Spots
                             </button>
                         )}
+                        {roles.has('DRIVER') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setProfileOpen(false)
+                                    nav('/my-bookings')
+                                }}
+                                style={{
+                                    width: '100%',
+                                    height: 42,
+                                    borderRadius: 12,
+                                    border: 0,
+                                    background: 'transparent',
+                                    textAlign: 'left',
+                                    padding: '0 12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    color: '#1e293b',
+                                    marginBottom: '5px',
+                                    transition: 'background 0.2s',
+                                }}
+                                onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                                My Bookings
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -434,6 +472,36 @@ export default function DriverPage() {
                     // BOTH or still DRIVER -> stay on /driver (no action needed)
                 }}
             />
+            <BookParkingModal
+                isOpen={bookingOpen}
+                spot={bookingSpot}
+                onClose={() => setBookingOpen(false)}
+                onBooked={(b) => {
+                    const total = b?.totalPrice != null ? `₪${b.totalPrice}` : ''
+                    setBookingToast(`Booking created (#${b?.id}). Status: ${b?.status || 'PENDING'} ${total}`)
+                    setTimeout(() => setBookingToast(''), 3500)
+                }}
+            />
+
+            {bookingToast && (
+                <div style={{ position: 'absolute', left: 12, right: 12, bottom: 80, zIndex: 50000, pointerEvents: 'none' }}>
+                    <div
+                        style={{
+                            pointerEvents: 'auto',
+                            background: 'rgba(255,255,255,0.96)',
+                            border: '1px solid rgba(15,23,42,0.12)',
+                            borderRadius: 14,
+                            padding: 12,
+                            boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)',
+                            fontWeight: 900,
+                            color: '#0f172a',
+                        }}
+                    >
+                        {bookingToast}
+                    </div>
+                </div>
+            )}
+
 
         </div>
     )

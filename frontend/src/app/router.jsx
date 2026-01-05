@@ -10,6 +10,7 @@ import NoPermissionPage from '../pages/NoPermissionPage.jsx'
 import ManageSpotsPage from '../pages/manageSpots.jsx'
 import ManageProfilePage from '../pages/manage-profile'
 import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
+import MyBookingsPage from '../pages/MyBookingsPage.jsx'
 
 
 import RequireRole from '../components/auth/RequireRole.jsx'
@@ -70,6 +71,14 @@ export const router = createBrowserRouter([
         element: (
             <RequireRole allow={['DRIVER', 'OWNER']}>
                 <ChangePasswordPage />
+            </RequireRole>
+        ),
+    },
+    {
+        path: '/my-bookings',
+        element: (
+            <RequireRole allow={['DRIVER']}>
+                <MyBookingsPage />
             </RequireRole>
         ),
     },
