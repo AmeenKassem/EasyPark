@@ -12,6 +12,22 @@ function authHeaders() {
     const token = localStorage.getItem('easypark_token')
     return token ? { Authorization: `Bearer ${token}` } : {}
 }
+function fmt(dt) {
+    if (!dt) return '—'
+    return String(dt).replace('T', ' ').slice(0, 16)
+}
+
+function statusBadgeStyle(status) {
+    const s = String(status || '').toUpperCase()
+
+    if (s === 'PENDING') return { background: '#FEF3C7', color: '#92400E' }
+    if (s === 'APPROVED') return { background: '#DCFCE7', color: '#166534' }
+    if (s === 'REJECTED') return { background: '#FEE2E2', color: '#991B1B' }
+    if (s === 'CANCELLED') return { background: '#E2E8F0', color: '#0f172a' }
+
+    return { background: '#E2E8F0', color: '#0f172a' }
+}
+
 
 function normalizeSpotForUpdate(spot, overrides = {}) {
     const payload = {
@@ -38,6 +54,11 @@ function normalizeSpotForUpdate(spot, overrides = {}) {
 
 export default function ManageSpotsPage() {
     const nav = useNavigate()
+    const [bookings, setBookings] = useState([])
+    const [bookingsLoading, setBookingsLoading] = useState(false)
+    const [bookingsError, setBookingsError] = useState('')
+    const [bookingSavingId, setBookingSavingId] = useState(null)
+
 
     const [spots, setSpots] = useState([])
     const [loading, setLoading] = useState(true)
@@ -50,6 +71,58 @@ export default function ManageSpotsPage() {
     const activeCount = useMemo(() => spots.filter((s) => !!s.active).length, [spots])
     const totalEarnings = 0
     const upcomingBookings = 0
+    const fetchOwnerBookings = async () => {
+        setBookingsLoading(true)
+        setBookingsError('')
+        try {
+            const res = await axios.get(`${API_BASE}/api/bookings/owner`, {
+                headers: { ...authHeaders() },
+            })
+            setBookings(Array.isArray(res.data) ? res.data : [])
+        } catch (e) {
+            const status = e?.response?.status
+            if (status === 401 || status === 403) {
+                setBookingsError('No permission / not logged in.')
+            } else {
+                setBookingsError('Failed to load bookings.')
+            }
+            setBookings([])
+        } finally {
+            setBookingsLoading(false)
+        }
+    }
+    useEffect(() => {
+        if (tab === 'bookings') {
+            fetchOwnerBookings()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab])
+    const updateBookingStatus = async (bookingId, status) => {
+        setBookingSavingId(bookingId)
+        setBookingsError('')
+        try {
+            await axios.put(
+                `${API_BASE}/api/bookings/${bookingId}/status`,
+                { status }, // "APPROVED" | "REJECTED"
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders(),
+                    },
+                },
+            )
+            await fetchOwnerBookings()
+        } catch (e) {
+            const msg =
+                e?.response?.data?.message ||
+                e?.response?.data ||
+                e?.message ||
+                'Failed to update booking status.'
+            setBookingsError(String(msg))
+        } finally {
+            setBookingSavingId(null)
+        }
+    }
 
     const fetchMySpots = async () => {
         setLoading(true)
@@ -161,15 +234,109 @@ export default function ManageSpotsPage() {
                         className={`ep-ms-tab ${tab === 'bookings' ? 'ep-ms-tabActive' : ''}`}
                         onClick={() => setTab('bookings')}
                     >
-                        Bookings (0)
+                        Bookings ({bookings.length})
+
                     </button>
                 </div>
 
                 {tab === 'bookings' ? (
-                    <div className="ep-ms-empty">
-                        Bookings UI is not implemented yet. When you add bookings endpoints, we’ll wire it here.
-                    </div>
+                    <>
+                        {bookingsError && <div className="ep-ms-error">{bookingsError}</div>}
+
+                        {bookingsLoading ? (
+                            <div className="ep-ms-empty">Loading bookings…</div>
+                        ) : bookings.length === 0 ? (
+                            <div className="ep-ms-empty">No booking requests yet.</div>
+                        ) : (
+                            <div className="ep-ms-grid">
+                                {bookings.map((b) => {
+                                    const isPending = b.status === 'PENDING'
+
+                                    return (
+                                        <div className="ep-ms-spotCard" key={b.id}>
+                                            <div className="ep-ms-spotBody">
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                                                    <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                        <span style={{ color: '#0f172a' }}>Booking #{b.id}</span>
+                                                        <span
+                                                            style={{
+                                                                ...statusBadgeStyle(b.status),
+                                                                padding: '6px 10px',
+                                                                borderRadius: 999,
+                                                                fontWeight: 900,
+                                                                fontSize: 12,
+                                                                lineHeight: '12px',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                            }}
+                                                        >
+                                            {b.status}
+                                        </span>
+                                                    </div>
+
+                                                    <div style={{ fontWeight: 900, color: '#0f172a' }}>
+                                                        {b.totalPrice != null ? `₪${b.totalPrice}` : ''}
+                                                    </div>
+                                                </div>
+
+                                                <div className="ep-ms-spotMeta" style={{ marginTop: 8 }}>
+                                                    <span>🅿️</span>
+                                                    <span>Parking ID: {b.parkingId}</span>
+                                                </div>
+
+                                                <div className="ep-ms-spotMeta">
+                                                    <span>🕒</span>
+                                                    <span>
+                                        <b>Start:</b> {fmt(b.startTime)} &nbsp;&nbsp; <b>End:</b> {fmt(b.endTime)}
+                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="ep-ms-actions">
+                                                {isPending ? (
+                                                    <>
+                                                        <button
+                                                            className="ep-ms-btn"
+                                                            disabled={bookingSavingId === b.id}
+                                                            onClick={() => updateBookingStatus(b.id, 'APPROVED')}
+                                                            style={{
+                                                                background: '#16a34a',
+                                                                border: 0,
+                                                                color: 'white',
+                                                                fontWeight: 900,
+                                                            }}
+                                                        >
+                                                            {bookingSavingId === b.id ? 'Saving…' : 'Approve'}
+                                                        </button>
+
+                                                        <button
+                                                            className="ep-ms-btn"
+                                                            disabled={bookingSavingId === b.id}
+                                                            onClick={() => updateBookingStatus(b.id, 'REJECTED')}
+                                                            style={{
+                                                                background: '#ef4444',
+                                                                border: 0,
+                                                                color: 'white',
+                                                                fontWeight: 900,
+                                                            }}
+                                                        >
+                                                            {bookingSavingId === b.id ? 'Saving…' : 'Reject'}
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <div style={{ fontWeight: 800, color: '#64748b', padding: '10px 6px' }}>
+                                                        No actions available.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </>
                 ) : (
+
                     <>
                         {loading ? (
                             <div className="ep-ms-empty">Loading your spots…</div>

@@ -118,7 +118,18 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '40px auto', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: '12px', backgroundColor: '#fff' }}>
+      <div
+          style={{
+              maxWidth: '600px',
+              margin: '40px auto',
+              padding: '24px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              borderRadius: '12px',
+              backgroundColor: '#fff',
+              color: '#0f172a',
+          }}
+      >
+
       <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>List Your Parking Spot</h2>
       
       <form onSubmit={handleSubmit}>

@@ -8,6 +8,17 @@ function fmt(dt) {
     // dt is ISO like "2026-01-05T10:00:00"
     return dt.replace('T', ' ').slice(0, 16)
 }
+function statusBadgeStyle(status) {
+    const s = String(status || '').toUpperCase()
+
+    if (s === 'PENDING') return { background: '#FEF3C7', color: '#92400E' }
+    if (s === 'APPROVED') return { background: '#DCFCE7', color: '#166534' }
+    if (s === 'REJECTED') return { background: '#FEE2E2', color: '#991B1B' }
+    if (s === 'CANCELLED') return { background: '#E2E8F0', color: '#0f172a' }
+
+    return { background: '#E2E8F0', color: '#0f172a' }
+}
+
 
 export default function MyBookingsPage() {
     const [loading, setLoading] = useState(true)
@@ -99,9 +110,25 @@ export default function MyBookingsPage() {
                                     }}
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                                        <div style={{ fontWeight: 900 }}>
-                                            Booking #{b.id} — {b.status}
+                                        <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <span style={{ color: '#0f172a' }}>Booking #{b.id}</span>
+
+                                            <span
+                                                style={{
+                                                    ...statusBadgeStyle(b.status),
+                                                    padding: '6px 10px',
+                                                    borderRadius: 999,
+                                                    fontWeight: 900,
+                                                    fontSize: 12,
+                                                    lineHeight: '12px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                }}
+                                            >
+        {b.status}
+    </span>
                                         </div>
+
                                         <div style={{ fontWeight: 900 }}>
                                             {b.totalPrice != null ? `₪${b.totalPrice}` : ''}
                                         </div>
