@@ -18,6 +18,27 @@ function statusBadgeStyle(status) {
 
     return { background: '#E2E8F0', color: '#0f172a' }
 }
+function extractErrorMessage(e, fallback) {
+    const data = e?.response?.data
+    if (typeof data === 'string') return data
+    if (data && typeof data === 'object') {
+        if (data.message) return String(data.message)
+        if (data.error) return String(data.error)
+    }
+    if (e?.message) return String(e.message)
+    return fallback
+}
+
+function canCancelBooking(b) {
+    const status = String(b?.status || '').toUpperCase()
+    if (status !== 'PENDING') return false
+    if (!b?.startTime) return false
+
+    const start = new Date(b.startTime)
+    if (Number.isNaN(start.getTime())) return false
+
+    return start > new Date() // only before start time
+}
 
 
 export default function MyBookingsPage() {
@@ -33,12 +54,10 @@ export default function MyBookingsPage() {
             const data = await getMyBookings()
             setItems(Array.isArray(data) ? data : [])
         } catch (e) {
-            const msg =
-                e?.response?.data?.message ||
-                e?.response?.data ||
-                e?.message ||
-                'Failed to load bookings.'
-            setFeedback({ message: String(msg), isError: true })
+            setFeedback({
+                message: extractErrorMessage(e, 'Failed to load bookings.'),
+                isError: true,
+            })
         } finally {
             setLoading(false)
         }
@@ -56,12 +75,10 @@ export default function MyBookingsPage() {
             await load()
             setFeedback({ message: 'Booking cancelled.', isError: false })
         } catch (e) {
-            const msg =
-                e?.response?.data?.message ||
-                e?.response?.data ||
-                e?.message ||
-                'Failed to cancel booking.'
-            setFeedback({ message: String(msg), isError: true })
+            setFeedback({
+                message: extractErrorMessage(e, 'Failed to cancel booking.'),
+                isError: true,
+            })
         } finally {
             setSavingId(null)
         }
@@ -98,7 +115,10 @@ export default function MyBookingsPage() {
                         </div>
                     ) : (
                         <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-                            {items.map((b) => (
+                            {items.map((b) => {
+                                const canCancel = canCancelBooking(b)
+                                return(
+
                                 <div
                                     key={b.id}
                                     style={{
@@ -109,6 +129,7 @@ export default function MyBookingsPage() {
                                         gap: 6,
                                     }}
                                 >
+
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                                         <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
                                             <span style={{ color: '#0f172a' }}>Booking #{b.id}</span>
@@ -147,15 +168,21 @@ export default function MyBookingsPage() {
                                         <button
                                             type="button"
                                             className="auth-primary"
-                                            style={{ width: 160, background: '#ef4444' }}
-                                            disabled={savingId === b.id}
+                                            style={{
+                                                width: 160,
+                                                background: canCancel ? '#ef4444' : '#94a3b8',
+                                                cursor: canCancel ? 'pointer' : 'not-allowed',
+                                            }}
+                                            disabled={!canCancel || savingId === b.id}
+                                            title={!canCancel ? 'Cancellation is allowed only before the booking start time.' : ''}
                                             onClick={() => doCancel(b.id)}
                                         >
                                             {savingId === b.id ? 'Cancelling...' : 'Cancel'}
                                         </button>
+
                                     </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     )}
                 </div>
