@@ -11,7 +11,7 @@ import ManageSpotsPage from '../pages/manageSpots.jsx'
 import ManageProfilePage from '../pages/manage-profile'
 import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
 import MyBookingsPage from '../pages/MyBookingsPage.jsx'
-
+import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
 
 import RequireRole from '../components/auth/RequireRole.jsx'
 
@@ -20,6 +20,7 @@ export const router = createBrowserRouter([
     { path: '/login', element: <LoginPage /> },
     { path: '/register', element: <RegisterPage /> },
     { path: '/reset-password', element: <ResetPasswordPage /> },
+    { path: '/forgot-password', element: <ForgotPasswordPage /> },
 
     // Optional: dashboard should be role-aware, not always DriverPage
     {
