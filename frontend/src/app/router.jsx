@@ -12,6 +12,7 @@ import ManageProfilePage from '../pages/manage-profile'
 import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
 import MyBookingsPage from '../pages/MyBookingsPage.jsx'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
+import StatsPage from '../pages/StatsPage.jsx'
 
 import RequireRole from '../components/auth/RequireRole.jsx'
 
@@ -83,6 +84,15 @@ export const router = createBrowserRouter([
             </RequireRole>
         ),
     },
+
+    {
+            path: '/stats',
+            element: (
+                <RequireRole allow={['DRIVER']}>
+                    <StatsPage />
+                </RequireRole>
+            ),
+        },
 
 
 
