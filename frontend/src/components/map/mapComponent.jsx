@@ -42,6 +42,8 @@ const btnStyleGoogle = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
+    height: 33,
+    marginTop: 13,
 }
 const btnStyleRequest = {
     backgroundColor: '#111827',  // you can choose any
@@ -52,6 +54,8 @@ const btnStyleRequest = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
+    height: 33,
+    marginTop: 13,
 }
 
 export default function MapComponent({
