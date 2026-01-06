@@ -35,8 +35,17 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
+      - name: Cache Maven Wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper/dists
+          key: ${{ runner.os }}-mvnw-${{ hashFiles('**/.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-mvnw-
+
       - name: Make mvnw executable
         run: chmod +x mvnw
+
 
       - name: Wait for MySQL to be ready
         run: |
