@@ -1,16 +1,24 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.BookedIntervalResponse;
 import com.example.demo.dto.CreateParkingRequest;
 import com.example.demo.dto.UpdateParkingRequest;
+import com.example.demo.model.Booking;
+import com.example.demo.model.BookingStatus;
 import com.example.demo.model.Parking;
+import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Service
@@ -19,9 +27,13 @@ public class ParkingService {
     private static final Logger log = LoggerFactory.getLogger(ParkingService.class);
 
     private final ParkingRepository parkingRepository;
+    private final BookingRepository bookingRepository;
+    private static final Collection<BookingStatus> BUSY_STATUSES =
+            List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
 
-    public ParkingService(ParkingRepository parkingRepository) {
+    public ParkingService(ParkingRepository parkingRepository, BookingRepository bookingRepository) {
         this.parkingRepository = parkingRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     public Parking create(Long ownerId, CreateParkingRequest req) {
@@ -118,4 +130,26 @@ public class ParkingService {
             throw new IllegalArgumentException("availableTo must be after availableFrom");
         }
     }
+    public List<BookedIntervalResponse> getBusyIntervals(Long parkingId, LocalDateTime from, LocalDateTime to) {
+        Parking p = parkingRepository.findById(parkingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
+
+        // Default to the parking’s availability window when not provided
+        LocalDateTime effectiveFrom = (from != null)
+                ? from
+                : (p.getAvailableFrom() != null ? p.getAvailableFrom() : LocalDateTime.now().minusYears(1));
+
+        LocalDateTime effectiveTo = (to != null)
+                ? to
+                : (p.getAvailableTo() != null ? p.getAvailableTo() : LocalDateTime.now().plusYears(1));
+
+        if (!effectiveFrom.isBefore(effectiveTo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from must be before to");
+        }
+
+        List<Booking> overlaps = bookingRepository.findOverlaps(parkingId, effectiveFrom, effectiveTo, BUSY_STATUSES);
+
+        return overlaps.stream().map(BookedIntervalResponse::from).toList();
+    }
+
 }

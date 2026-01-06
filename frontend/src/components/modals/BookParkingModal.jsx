@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState,useEffect } from 'react'
 import { createBooking } from '../../services/booking'
 
 function toInputDateTime(dt) {
@@ -6,7 +6,124 @@ function toInputDateTime(dt) {
     // "2026-01-05T10:00:00" -> "2026-01-05T10:00"
     return String(dt).slice(0, 16)
 }
-function validateRange(spot, startStr, endStr) {
+function formatLocal(dt) {
+    if (!dt) return ''
+    // show "2026-01-06 14:00"
+    return toInputDateTime(dt).replace('T', ' ')
+}
+
+function prettyInterval(it) {
+    return `${formatLocal(it.startTime)} → ${formatLocal(it.endTime)}`
+}
+
+function overlapsAny(startStr, endStr, busyIntervals) {
+        if (!startStr || !endStr) return false
+            const s = new Date(startStr)
+            const e = new Date(endStr)
+            return (busyIntervals || []).some((it) => {
+                    const a = new Date(it.startTime)
+                        const b = new Date(it.endTime)
+                        // overlap if a < e && b > s
+                        return a < e && b > s
+                    })
+        }
+function pad2(n) {
+    return String(n).padStart(2, '0')
+}
+
+function dateToLocalInputValue(d) {
+    const yyyy = d.getFullYear()
+    const mm = pad2(d.getMonth() + 1)
+    const dd = pad2(d.getDate())
+    const hh = pad2(d.getHours())
+    const mi = pad2(d.getMinutes())
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+function displaySlot(s) {
+    return `${(s.start || '').replace('T', ' ')} → ${(s.end || '').replace('T', ' ')}`
+}
+
+/**
+ * Returns free slots inside [availableFrom, availableTo], after subtracting busyIntervals.
+ * Output is an array of { start: "YYYY-MM-DDTHH:mm", end: "YYYY-MM-DDTHH:mm" }.
+ */
+function computeFreeSlots(spot, busyIntervals) {
+    const fromStr = spot?.availableFrom ? toInputDateTime(spot.availableFrom) : null
+    const toStr = spot?.availableTo ? toInputDateTime(spot.availableTo) : null
+    if (!fromStr || !toStr) return []
+
+    const windowStart = new Date(fromStr)
+    const windowEnd = new Date(toStr)
+    if (!(windowStart < windowEnd)) return []
+
+    // Clip + normalize busy intervals to the owner window
+    const busy = (busyIntervals || [])
+        .map((it) => ({
+            start: new Date(toInputDateTime(it.startTime)),
+            end: new Date(toInputDateTime(it.endTime)),
+        }))
+        .filter((it) => it.start < windowEnd && it.end > windowStart)
+        .map((it) => ({
+            start: new Date(Math.max(it.start.getTime(), windowStart.getTime())),
+            end: new Date(Math.min(it.end.getTime(), windowEnd.getTime())),
+        }))
+        .filter((it) => it.start < it.end)
+        .sort((a, b) => a.start - b.start)
+
+    // Merge overlaps/adjacent
+    const merged = []
+    for (const it of busy) {
+        const last = merged[merged.length - 1]
+        if (!last) {
+            merged.push(it)
+            continue
+        }
+        if (it.start.getTime() <= last.end.getTime()) {
+            last.end = new Date(Math.max(last.end.getTime(), it.end.getTime()))
+        } else {
+            merged.push(it)
+        }
+    }
+
+    // Subtract merged busy from window
+    const free = []
+    let cur = windowStart
+
+    for (const b of merged) {
+        if (cur < b.start) {
+            free.push({ start: new Date(cur), end: new Date(b.start) })
+        }
+        if (b.end > cur) cur = b.end
+    }
+    if (cur < windowEnd) {
+        free.push({ start: new Date(cur), end: new Date(windowEnd) })
+    }
+
+    return free
+        .filter((s) => s.start < s.end)
+        .map((s) => ({
+            start: dateToLocalInputValue(s.start),
+            end: dateToLocalInputValue(s.end),
+        }))
+}
+
+function isInsideAnyFreeSlot(startStr, endStr, freeSlots) {
+    if (!startStr || !endStr) return false
+    const s = new Date(startStr)
+    const e = new Date(endStr)
+    if (!(s < e)) return false
+
+    return (freeSlots || []).some((slot) => {
+        const a = new Date(slot.start)
+        const b = new Date(slot.end)
+        // Fully contained within a single slot
+        return s >= a && e <= b
+    })
+}
+
+function validateRange(spot, startStr, endStr, busyIntervals, freeSlots) {
+
     if (!spot?.id) return 'Missing parking spot.';
     if (!startStr || !endStr) return 'Start and End are required.';
     if (startStr >= endStr) return 'Start time must be before end time.';
@@ -23,6 +140,13 @@ function validateRange(spot, startStr, endStr) {
         const to = new Date(spot.availableTo);
         if (end > to) return 'End time is after the parking availability window.';
     }
+// Enforce that selection is fully inside an available slot
+    if (spot?.availableFrom && spot?.availableTo) {
+        if (!isInsideAnyFreeSlot(startStr, endStr, freeSlots)) {
+            return 'Selected time is not available. Please choose a range inside an available slot.'
+        }
+    }
+
     return null;
 }
 
@@ -30,25 +154,98 @@ function validateRange(spot, startStr, endStr) {
 export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     const [saving, setSaving] = useState(false)
     const [feedback, setFeedback] = useState({ message: '', isError: false })
+    const [busyIntervals,setBusyIntervals] = useState([])
+    const [busyLoading,setBusyLoading] = useState(false)
     const minStart = toInputDateTime(spot?.availableFrom)
     const maxEnd = toInputDateTime(spot?.availableTo)
+    const freeSlots = useMemo(() => {
+        return computeFreeSlots(spot, busyIntervals)
+    }, [spot?.availableFrom, spot?.availableTo, busyIntervals])
+
+
 
     const [form, setForm] = useState({
         startTime: '',
         endTime: '',
     })
 
+    const validationMessage = useMemo(() => {
+        return validateRange(spot, form.startTime, form.endTime, busyIntervals, freeSlots)
+
+    }, [spot, form.startTime, form.endTime, busyIntervals,freeSlots])
+    // Fetch busy intervals (approved/pending bookings) for this spot.
+    // This lets the UI block overlapping selections.
+    useEffect(() => {
+        if (!isOpen || !spot?.id) {
+            setBusyIntervals([])
+            setBusyLoading(false)
+            return
+        }
+
+        let cancelled = false
+        const controller = new AbortController()
+
+        const fetchBusy = async () => {
+            setBusyLoading(true)
+            try {
+                // Use the spot availability window if available; it reduces payload and is what the user sees.
+                const from = spot?.availableFrom ? toInputDateTime(spot.availableFrom) : undefined
+                const to = spot?.availableTo ? toInputDateTime(spot.availableTo) : undefined
+
+                const params = new URLSearchParams()
+                if (from) params.set('from', from)
+                if (to) params.set('to', to)
+
+                const token = localStorage.getItem('easypark_token')
+                const res = await fetch(
+                    `http://localhost:8080/api/parking-spots/${spot.id}/busy?${params.toString()}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        signal: controller.signal,
+                    },
+                )
+
+                if (!res.ok) {
+                    // Keep modal usable even if busy fetch fails
+                    const txt = await res.text().catch(() => '')
+                    throw new Error(txt || `Failed to fetch busy intervals (HTTP ${res.status})`)
+                }
+
+                const data = await res.json()
+                if (!cancelled) setBusyIntervals(Array.isArray(data) ? data : [])
+            } catch (err) {
+                if (!cancelled) {
+                    // Do not hard-fail booking UI; just clear intervals
+                    setBusyIntervals([])
+                    // Optional: uncomment if you want to show a warning
+                    // setFeedback({ message: 'Could not load booked times. Try again.', isError: true })
+                }
+            } finally {
+                if (!cancelled) setBusyLoading(false)
+            }
+        }
+
+        fetchBusy()
+        return () => {
+            cancelled = true
+            controller.abort()
+        }
+    }, [isOpen, spot?.id, spot?.availableFrom, spot?.availableTo])
+
     const canSubmit = useMemo(() => {
-        if (!spot?.id) return false;
-        const err = validateRange(spot, form.startTime, form.endTime);
-        return !err;
-    }, [spot?.id, spot?.availableFrom, spot?.availableTo, form.startTime, form.endTime]);
+        if (!spot?.id) return false
+        return !validationMessage
+    }, [spot?.id, validationMessage])
 
 
     if (!isOpen) return null
 
     const onChange = (e) => {
         const { name, value } = e.target;
+        setFeedback((f) => (f.message ? { message: '', isError: false } : f))
 
         setForm((p) => {
             const next = { ...p, [name]: value };
@@ -69,6 +266,10 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                 if (next.startTime && next.startTime > max) next.startTime = max;
                 if (next.endTime && next.endTime > max) next.endTime = max;
             }
+            // if (next.startTime && next.endTime && overlapsAny(next.startTime, next.endTime, busyIntervals)) {
+            //     setFeedback({ message: 'Selected time overlaps an existing booking. Please choose another time.', isError: true })
+            // }
+
 
             return next;
         });
@@ -78,7 +279,8 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     const handleSubmit = async () => {
         setFeedback({ message: '', isError: false })
 
-        const err = validateRange(spot, form.startTime, form.endTime);
+        const err = validateRange(spot, form.startTime, form.endTime, busyIntervals, freeSlots);
+
         if (err) {
             setFeedback({ message: err, isError: true });
             return;
@@ -151,12 +353,39 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                 <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
                     {(spot?.availableFrom || spot?.availableTo) && (
                         <div style={{ marginTop: 10, fontWeight: 800, color: '#0f172a' }}>
-                            Available:
-                            <div style={{ fontWeight: 700, color: '#334155', marginTop: 4 }}>
-                                {spot?.availableFrom ? toInputDateTime(spot.availableFrom).replace('T', ' ') : 'Any start'}{' '}
-                                →{' '}
-                                {spot?.availableTo ? toInputDateTime(spot.availableTo).replace('T', ' ') : 'Any end'}
+                            Available slots:
+                            <div style={{ marginTop: 6, display: 'grid', gap: 6 }}>
+                                {freeSlots.length === 0 ? (
+                                    <div style={{ fontWeight: 800, color: '#991b1b' }}>
+                                        No available slots in this window.
+                                    </div>
+                                ) : (
+                                    freeSlots.map((s, idx) => (
+                                        <div
+                                            key={`${s.start}-${s.end}-${idx}`}
+                                            style={{
+                                                padding: '8px 10px',
+                                                borderRadius: 12,
+                                                background: 'rgba(37,99,235,0.08)',
+                                                border: '1px solid rgba(37,99,235,0.18)',
+                                                color: '#1e3a8a',
+                                                fontWeight: 800,
+                                                cursor: 'pointer',
+                                            }}
+                                            title="Click to set start time"
+                                            onClick={() => setForm({ startTime: s.start, endTime: '' })}
+                                        >
+                                            {displaySlot(s)}
+                                        </div>
+                                    ))
+                                )}
                             </div>
+                        </div>
+                    )}
+
+                    {busyLoading && (
+                        <div style={{ marginTop: 6, fontWeight: 700, color: '#64748b' }}>
+                            Loading booked times...
                         </div>
                     )}
 
@@ -198,7 +427,7 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                         />
                     </div>
 
-                    {feedback.message && (
+                    {feedback.message && !validationMessage && (
                         <div
                             style={{
                                 padding: 10,
@@ -209,6 +438,19 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                             }}
                         >
                             {feedback.message}
+                        </div>
+                    )}
+                    {validationMessage && (
+                        <div
+                            style={{
+                                padding: 10,
+                                borderRadius: 12,
+                                background: '#fee2e2',
+                                color: '#991b1b',
+                                fontWeight: 800,
+                            }}
+                        >
+                            {validationMessage}
                         </div>
                     )}
 
