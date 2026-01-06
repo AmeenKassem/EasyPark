@@ -66,3 +66,7 @@ export function logout() {
     notifyAuthChanged()
 
 }
+
+export const getAuthToken = () => {
+    return localStorage.getItem(TOKEN_KEY);
+}
