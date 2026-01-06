@@ -26,6 +26,8 @@ export default function DriverPage() {
     const [bookingOpen, setBookingOpen] = useState(false)
     const [bookingSpot, setBookingSpot] = useState(null)
     const [bookingToast, setBookingToast] = useState('')
+    const [availFrom, setAvailFrom] = useState('') // datetime-local string
+    const [availTo, setAvailTo] = useState('')     // datetime-local string
 
 
 
@@ -45,7 +47,7 @@ export default function DriverPage() {
     const [filtersOpen, setFiltersOpen] = useState(false)
     const [coveredOnly, setCoveredOnly] = useState(false)
     const [activeOnly, setActiveOnly] = useState(true)
-    const [maxPrice, setMaxPrice] = useState(100)
+    const [maxPrice, setMaxPrice] = useState('') // empty = no max price filter
 
     // Data State
     const [realSpots, setRealSpots] = useState([])
@@ -80,7 +82,8 @@ export default function DriverPage() {
                 // Server params (SQL Filtering)
                 const params = {};
                 if (coveredOnly) params.covered = true;
-                if (maxPrice < 100) params.maxPrice = maxPrice;
+                const max = Number(maxPrice);
+                if (Number.isFinite(max) && max > 0) params.maxPrice = max;
 
                 const response = await axios.get('http://localhost:8080/api/parking-spots/search', {
                     params,
@@ -92,6 +95,31 @@ export default function DriverPage() {
                 // 1. Client-side Filter: Active Only
                 if (activeOnly) {
                     data = data.filter(s => s.active === true);
+                }
+                // 3. Availability window filter (client-side)
+// Show only spots whose availability covers the requested interval.
+                if (availFrom && availTo) {
+                    const wantFrom = new Date(availFrom)
+                    const wantTo = new Date(availTo)
+
+                    data = data.filter((s) => {
+                        if (!s?.availableFrom || !s?.availableTo) return true
+                        const spotFrom = new Date(s.availableFrom)
+                        const spotTo = new Date(s.availableTo)
+                        return spotFrom <= wantFrom && spotTo >= wantTo
+                    })
+                } else if (availFrom) {
+                    const wantFrom = new Date(availFrom)
+                    data = data.filter((s) => {
+                        if (!s?.availableFrom) return false
+                        return new Date(s.availableFrom) <= wantFrom
+                    })
+                } else if (availTo) {
+                    const wantTo = new Date(availTo)
+                    data = data.filter((s) => {
+                        if (!s?.availableTo) return false
+                        return new Date(s.availableTo) >= wantTo
+                    })
                 }
 
                 // 2. GEOSPATIAL FILTER: Bounds Check (Viewport)
@@ -123,7 +151,7 @@ export default function DriverPage() {
         };
 
         fetchSpots();
-    }, [address, coveredOnly, maxPrice, activeOnly, searchBounds]); // Re-run when bounds change
+    }, [address, coveredOnly, maxPrice, activeOnly, searchBounds,availFrom,availTo]); // Re-run when bounds change
 
     // --- AUTOCOMPLETE HANDLERS ---
     const onLoadAutocomplete = (au) => {
@@ -180,7 +208,7 @@ export default function DriverPage() {
         setSearchBounds(null); // Clear geospatial filter
         setCoveredOnly(false);
         setActiveOnly(true);
-        setMaxPrice(100);
+        setMaxPrice('');
     }
 
     // ... (Logout & Profile Logic - UNCHANGED) ...
@@ -323,10 +351,76 @@ export default function DriverPage() {
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                                         <span style={{ fontWeight: 800, color: '#0f172a' }}>Max price</span>
-                                        <span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice}/hr</span>
+                                        <span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice ? `${maxPrice}/hr` : 'Any'}</span>
                                     </div>
-                                    <input type="range" min="0" max="100" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} style={{ width: '100%' }} />
+
+
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min="1"
+                                        step="1"
+                                        placeholder="e.g. 100"
+                                        value={maxPrice}
+                                        onChange={(e) => setMaxPrice(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            height: 44,
+                                            borderRadius: 12,
+                                            border: '1px solid rgba(15,23,42,0.14)',
+                                            padding: '0 12px',
+                                            outline: 'none',
+                                            fontSize: 16,
+                                            color: '#0f172a',
+                                        }}
+                                    />
                                 </div>
+                                <div style={{ display: 'grid', gap: 10 }}>
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available from</div>
+                                        <input
+                                            type="datetime-local"
+                                            value={availFrom}
+                                            onChange={(e) => {
+                                                const v = e.target.value
+                                                setAvailFrom(v)
+                                                // keep range valid
+                                                if (availTo && v && v > availTo) setAvailTo('')
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                height: 44,
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(15,23,42,0.14)',
+                                                padding: '0 12px',
+                                                outline: 'none',
+                                                fontSize: 16,
+                                                color: '#0f172a',
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available to</div>
+                                        <input
+                                            type="datetime-local"
+                                            value={availTo}
+                                            min={availFrom || undefined}
+                                            onChange={(e) => setAvailTo(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                height: 44,
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(15,23,42,0.14)',
+                                                padding: '0 12px',
+                                                outline: 'none',
+                                                fontSize: 16,
+                                                color: '#0f172a',
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                                     <button type="button" onClick={handleReset} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(15, 23, 42, 0.14)', background: 'transparent', fontWeight: 900, cursor: 'pointer' }}>Reset</button>
                                     <button type="button" onClick={() => setFiltersOpen(false)} style={{ flex: 1, height: 44, borderRadius: 12, border: 0, background: '#0f172a', color: 'white', fontWeight: 900, cursor: 'pointer' }}>Apply</button>
