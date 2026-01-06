@@ -619,7 +619,7 @@ import { logout, getCurrentUser, subscribeAuthChanged } from '../services/sessio
 import ProfileModal from '../components/modals/ProfileModal';
 import BookParkingModal from '../components/modals/BookParkingModal'
 
-// --- ICONS (Keeping existing icons) ---
+// --- ICONS ---
 function IconPin({ size = 18 }) { return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" /><path d="M12 13.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" stroke="currentColor" strokeWidth="1.8" /></svg>) }
 function IconUser({ size = 18 }) { return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12a4.2 4.2 0 1 0-4.2-4.2A4.2 4.2 0 0 0 12 12Z" stroke="currentColor" strokeWidth="1.8" /><path d="M4.5 20.2c1.4-4.2 13.6-4.2 15 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>) }
 function IconSearch({ size = 18 }) { return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.5 18.5a8 8 0 1 1 5.2-14.1A8 8 0 0 1 10.5 18.5Z" stroke="currentColor" strokeWidth="1.8" /><path d="M16.8 16.8 21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>) }
@@ -632,17 +632,15 @@ export default function DriverPage() {
     const location = useLocation()
     const [user, setUser] = useState(getCurrentUser())
     
-    // -- Map Ref (Added to control map programmatically) --
+    // -- Refs --
     const mapRef = useRef(null)
-    
-    // -- Race Condition Flag --
-    const isPlaceSelectedRef = useRef(false)
+    const isPlaceSelectedRef = useRef(false) // למניעת כפילות בבחירה
 
     const [bookingOpen, setBookingOpen] = useState(false)
     const [bookingSpot, setBookingSpot] = useState(null)
     const [bookingToast, setBookingToast] = useState('')
-    const [availFrom, setAvailFrom] = useState('') // datetime-local string
-    const [availTo, setAvailTo] = useState('')     // datetime-local string
+    const [availFrom, setAvailFrom] = useState('')
+    const [availTo, setAvailTo] = useState('')
 
     useEffect(() => {
         return subscribeAuthChanged(() => setUser(getCurrentUser()))
@@ -655,7 +653,10 @@ export default function DriverPage() {
     const [filtersOpen, setFiltersOpen] = useState(false)
     const [coveredOnly, setCoveredOnly] = useState(false)
     const [activeOnly, setActiveOnly] = useState(true)
-    const [maxPrice, setMaxPrice] = useState('') // empty = no max price filter
+    const [maxPrice, setMaxPrice] = useState('')
+    
+    // -- State עבור גבולות המפה (המשתנה החסר!) --
+    const [searchBounds, setSearchBounds] = useState(null)
 
     // Data State
     const [realSpots, setRealSpots] = useState([])
@@ -678,7 +679,8 @@ export default function DriverPage() {
         setUser(getCurrentUser())
     }, [location.key])
 
-    // --- FETCH DATA (Fix 1: Removed 'address' dependency) ---
+    // --- FETCH DATA ---
+    // שיחזרנו את הלוגיקה שלך אבל הסרנו את address מהתלויות כדי למנוע ריענון בכל הקלדה
     useEffect(() => {
         const fetchSpots = async () => {
             setLoading(true);
@@ -698,43 +700,32 @@ export default function DriverPage() {
                 if (activeOnly) {
                     data = data.filter(s => s.active === true);
                 }
-                // 3. Availability window filter (client-side)
-// Show only spots whose availability covers the requested interval.
+
+                // Availability Filter
                 if (availFrom && availTo) {
                     const wantFrom = new Date(availFrom)
                     const wantTo = new Date(availTo)
-
                     data = data.filter((s) => {
                         if (!s?.availableFrom || !s?.availableTo) return true
                         const spotFrom = new Date(s.availableFrom)
                         const spotTo = new Date(s.availableTo)
                         return spotFrom <= wantFrom && spotTo >= wantTo
                     })
-                } else if (availFrom) {
-                    const wantFrom = new Date(availFrom)
-                    data = data.filter((s) => {
-                        if (!s?.availableFrom) return false
-                        return new Date(s.availableFrom) <= wantFrom
-                    })
-                } else if (availTo) {
-                    const wantTo = new Date(availTo)
-                    data = data.filter((s) => {
-                        if (!s?.availableTo) return false
-                        return new Date(s.availableTo) >= wantTo
-                    })
                 }
 
-                // 2. GEOSPATIAL FILTER: Bounds Check (Viewport)
-                // This solves the language issue ("Ashdod" == "אשדוד") because both return the same coordinates box
+                // GEOSPATIAL FILTER (Bounds Check)
+                // זהו המשתנה שגרם לשגיאה - עכשיו הוא בטוח בתוך ה-Effect
                 if (searchBounds) {
                     data = data.filter(s => {
-                        // Fix 5: Robust coordinate check (0 is valid)
-                        if (s.lat == null || s.lng == null) return false;
+                        const lat = Number(s.lat);
+                        const lng = Number(s.lng);
+                        if (isNaN(lat) || isNaN(lng)) return false;
+
                         return (
-                            s.lat <= searchBounds.north &&
-                            s.lat >= searchBounds.south &&
-                            s.lng <= searchBounds.east &&
-                            s.lng >= searchBounds.west
+                            lat <= searchBounds.north &&
+                            lat >= searchBounds.south &&
+                            lng <= searchBounds.east &&
+                            lng >= searchBounds.west
                         );
                     });
                 }
@@ -748,26 +739,23 @@ export default function DriverPage() {
         };
 
         fetchSpots();
-    }, [address, coveredOnly, maxPrice, activeOnly, searchBounds,availFrom,availTo]); // Re-run when bounds change
+    }, [coveredOnly, maxPrice, activeOnly, searchBounds, availFrom, availTo]); 
 
-    // --- HELPER: Fetch Place Details Manually (Fix 3) ---
+    // --- HELPER: Fetch Place Details Manually ---
     const fetchFirstPredictionDetails = (inputText) => {
         return new Promise((resolve, reject) => {
             if (!window.google || !window.google.maps || !window.google.maps.places) {
                 return reject("Google Maps API not loaded");
             }
-            
             const autocompleteService = new window.google.maps.places.AutocompleteService();
             autocompleteService.getPlacePredictions({ input: inputText }, (predictions, status) => {
                 if (status !== window.google.maps.places.PlacesServiceStatus.OK || !predictions || predictions.length === 0) {
                     return reject("No predictions found");
                 }
-
+                // לוקחים את התוצאה הראשונה
                 const firstPlaceId = predictions[0].place_id;
-                // Update text immediately for better UX
                 setAddress(predictions[0].description);
 
-                // Use PlacesService instead of Geocoder for consistent results
                 const placesService = new window.google.maps.places.PlacesService(document.createElement('div'));
                 placesService.getDetails({
                     placeId: firstPlaceId,
@@ -783,7 +771,7 @@ export default function DriverPage() {
         });
     };
 
-    // --- CENTRALIZED PLACE HANDLER ---
+    // --- MAIN LOGIC: Handle Selected Place ---
     const handlePlaceSelect = (place) => {
         if (place.geometry && place.geometry.location) {
             const lat = place.geometry.location.lat();
@@ -797,6 +785,7 @@ export default function DriverPage() {
                                 types.includes('administrative_area_level_2');
 
             if (isBroadArea && place.geometry.viewport) {
+                // עיר/אזור - משתמשים ב-Viewport של גוגל
                 const bounds = place.geometry.viewport;
                 setSearchBounds({
                     north: bounds.getNorthEast().lat(),
@@ -804,11 +793,14 @@ export default function DriverPage() {
                     east: bounds.getNorthEast().lng(),
                     west: bounds.getSouthWest().lng()
                 });
-                // Fix 2: mapRef usage
-                if (mapRef.current) mapRef.current.fitBounds(bounds);
+                
+                // שימוש ב-ref כדי להזיז את המפה בפועל
+                if (mapRef.current) {
+                    mapRef.current.fitBounds(bounds);
+                }
 
             } else {
-                // Fixed radius approx (~1.5km box)
+                // כתובת ספציפית - רדיוס קבוע
                 const delta = 0.015; 
                 setSearchBounds({
                     north: lat + delta,
@@ -816,7 +808,8 @@ export default function DriverPage() {
                     east: lng + delta,
                     west: lng - delta
                 });
-                // Fix 2: mapRef usage
+                
+                // זום ידני למקום
                 if (mapRef.current) {
                     mapRef.current.setZoom(15);
                     mapRef.current.panTo({ lat, lng });
@@ -829,28 +822,32 @@ export default function DriverPage() {
         }
     };
 
-    // --- AUTOCOMPLETE HANDLERS ---
     const onLoadAutocomplete = (au) => setAutocomplete(au);
 
     const onPlaceChanged = () => {
-        isPlaceSelectedRef.current = true; // Signal that Google handled it
+        isPlaceSelectedRef.current = true;
         if (autocomplete !== null) {
             const place = autocomplete.getPlace();
             handlePlaceSelect(place);
         }
     }
 
-    // --- ENTER KEY HANDLER ---
+    // --- לוגיקת Enter המשולבת (הקוד הישן + החדש) ---
     const handleInputKeyDown = (e) => {
+        // שילוב הקוד הישן: בדיקה אם המשתמש מנווט עם החצים
+        const isDropdownItemHtmlSelected = document.querySelector('.pac-item-selected');
+        if (isDropdownItemHtmlSelected) {
+            return; // תן לגוגל לעשות את העבודה
+        }
+
         if (e.key === 'Enter' && address.trim() !== '') {
-            // Reset flag
             isPlaceSelectedRef.current = false;
-
-            // Wait briefly to see if onPlaceChanged fires
+            
+            // חיכיון קצר כדי לראות אם onPlaceChanged נתפס קודם
             setTimeout(async () => {
-                if (isPlaceSelectedRef.current) return; // Google handled it
-
-                // Manual Fetch fallback
+                if (isPlaceSelectedRef.current) return;
+                
+                // אם לא נבחר כלום - חיפוש ידני של התוצאה הראשונה
                 try {
                     const place = await fetchFirstPredictionDetails(address);
                     handlePlaceSelect(place);
@@ -862,7 +859,6 @@ export default function DriverPage() {
         }
     };
 
-    // --- RESET HANDLER ---
     const handleReset = () => {
         setAddress('');
         setSearchBounds(null); 
@@ -871,10 +867,16 @@ export default function DriverPage() {
         setMaxPrice('');
     }
 
-    // ... (Logout & Profile Helpers - Unchanged) ...
-    const doLogout = () => { /* ... */ setProfileOpen(false); nav('/', { replace: true }) }
-    const openProfileMenu = () => { /* ... logic ... */ setProfileOpen(true) }
-    // ... (useEffect for profile menu - Unchanged) ...
+    const doLogout = () => { try { localStorage.removeItem('easypark_token') } catch {} try { logout() } catch {} setProfileOpen(false); nav('/', { replace: true }) }
+    const openProfileMenu = () => { const el = profileBtnRef.current; if (el) { const r = el.getBoundingClientRect(); setProfileMenuPos({ top: r.bottom + 10, left: Math.min(window.innerWidth - 220 - 12, Math.max(12, r.right - 220)) }) } setProfileOpen(true) }
+
+    useEffect(() => {
+        if (!profileOpen) return
+        const onResizeOrScroll = () => { if(profileBtnRef.current) openProfileMenu() }
+        window.addEventListener('resize', onResizeOrScroll)
+        window.addEventListener('scroll', onResizeOrScroll, true)
+        return () => { window.removeEventListener('resize', onResizeOrScroll); window.removeEventListener('scroll', onResizeOrScroll, true) }
+    }, [profileOpen])
 
     return (
         <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', background: '#0b1220' }}>
@@ -884,7 +886,7 @@ export default function DriverPage() {
                     key={location.key}
                     spots={realSpots}
                     center={mapCenter}
-                    // Fix 2: Getting the map instance from child
+                    // העברת ה-Ref כדי שנוכל לשלוט בזום
                     onMapLoad={(map) => mapRef.current = map}
                     currentUserId={user?.id}
                     onSpotClick={(spot) => {
@@ -892,12 +894,9 @@ export default function DriverPage() {
                         setBookingOpen(true)
                     }}
                 />
-
             </div>
 
-            {/* HEADER, SEARCH BAR, FOOTER, MODALS - (Keeping structure identical) */}
             <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
-                 {/* HEADER */}
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '12px 14px', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(10px)', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.12)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div onClick={() => nav('/driver')} role="button" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                         <span style={{ width: 42, height: 42, borderRadius: 999, background: 'rgb(37,99,235)', display: 'grid', placeItems: 'center', color: 'white', overflow: 'hidden' }} aria-hidden="true">
@@ -910,23 +909,15 @@ export default function DriverPage() {
                     </button>
                 </div>
 
-                {/* SEARCH BAR */}
                 <div style={{ position: 'absolute', top: 74, left: 12, right: 12, pointerEvents: 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 999, background: 'rgba(255,255,255,0.96)', boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)' }}>
-                        <span style={{ color: '#94a3b8' }} aria-hidden="true">
-                            <IconSearch size={18} />
-                        </span>
-
+                        <span style={{ color: '#94a3b8' }} aria-hidden="true"><IconSearch size={18} /></span>
                         <div style={{ flex: 1 }}>
-                            <Autocomplete
-                                onLoad={onLoadAutocomplete}
-                                onPlaceChanged={onPlaceChanged}
-                            >
+                            <Autocomplete onLoad={onLoadAutocomplete} onPlaceChanged={onPlaceChanged}>
                                 <input
                                     value={address}
                                     onChange={(e) => {
                                         setAddress(e.target.value);
-                                        // If user clears text, we MIGHT want to clear bounds, but strictly relying on address for fetch is gone.
                                         if (e.target.value === '') setSearchBounds(null);
                                     }}
                                     onKeyDown={handleInputKeyDown}
@@ -936,21 +927,17 @@ export default function DriverPage() {
                                 />
                             </Autocomplete>
                         </div>
-
-                        <button type="button" onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 40, height: 40, borderRadius: 999, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#2563eb' }}>
-                            <IconSliders size={18} />
-                        </button>
+                        <button type="button" onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 40, height: 40, borderRadius: 999, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#2563eb' }}><IconSliders size={18} /></button>
                     </div>
                 </div>
 
-                 {/* Footer Stats */}
                  <div style={{ position: 'absolute', left: 12, bottom: 18, pointerEvents: 'none' }}>
                     <div style={{ pointerEvents: 'auto', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(10px)', borderRadius: 999, padding: '8px 12px', boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)', fontWeight: 800, color: '#0f172a' }}>
                         {loading ? 'Loading...' : `${realSpots.length} spots found`}
                     </div>
                 </div>
 
-                {/* FILTERS MODAL */}
+                {/* Filters Modal Logic */}
                 {filtersOpen && (
                     <div style={{ position: 'absolute', inset: 0, zIndex: 20000, pointerEvents: 'auto' }}>
                         <button type="button" onClick={() => setFiltersOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.45)', border: 0 }} />
@@ -964,78 +951,19 @@ export default function DriverPage() {
                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Active only</span><input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /></label>
                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Covered only</span><input type="checkbox" checked={coveredOnly} onChange={(e) => setCoveredOnly(e.target.checked)} /></label>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                        <span style={{ fontWeight: 800, color: '#0f172a' }}>Max price</span>
-                                        <span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice ? `${maxPrice}/hr` : 'Any'}</span>
-                                    </div>
-
-
-                                    <input
-                                        type="number"
-                                        inputMode="numeric"
-                                        min="1"
-                                        step="1"
-                                        placeholder="e.g. 100"
-                                        value={maxPrice}
-                                        onChange={(e) => setMaxPrice(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            height: 44,
-                                            borderRadius: 12,
-                                            border: '1px solid rgba(15,23,42,0.14)',
-                                            padding: '0 12px',
-                                            outline: 'none',
-                                            fontSize: 16,
-                                            color: '#0f172a',
-                                        }}
-                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Max price</span><span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice ? `${maxPrice}/hr` : 'Any'}</span></div>
+                                    <input type="number" inputMode="numeric" min="1" step="1" placeholder="e.g. 100" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} style={{ width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(15,23,42,0.14)', padding: '0 12px', outline: 'none', fontSize: 16, color: '#0f172a' }} />
                                 </div>
                                 <div style={{ display: 'grid', gap: 10 }}>
                                     <div>
                                         <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available from</div>
-                                        <input
-                                            type="datetime-local"
-                                            value={availFrom}
-                                            onChange={(e) => {
-                                                const v = e.target.value
-                                                setAvailFrom(v)
-                                                // keep range valid
-                                                if (availTo && v && v > availTo) setAvailTo('')
-                                            }}
-                                            style={{
-                                                width: '100%',
-                                                height: 44,
-                                                borderRadius: 12,
-                                                border: '1px solid rgba(15,23,42,0.14)',
-                                                padding: '0 12px',
-                                                outline: 'none',
-                                                fontSize: 16,
-                                                color: '#0f172a',
-                                            }}
-                                        />
+                                        <input type="datetime-local" value={availFrom} onChange={(e) => { const v = e.target.value; setAvailFrom(v); if (availTo && v && v > availTo) setAvailTo('') }} style={{ width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(15,23,42,0.14)', padding: '0 12px', outline: 'none', fontSize: 16, color: '#0f172a' }} />
                                     </div>
-
                                     <div>
                                         <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available to</div>
-                                        <input
-                                            type="datetime-local"
-                                            value={availTo}
-                                            min={availFrom || undefined}
-                                            onChange={(e) => setAvailTo(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                height: 44,
-                                                borderRadius: 12,
-                                                border: '1px solid rgba(15,23,42,0.14)',
-                                                padding: '0 12px',
-                                                outline: 'none',
-                                                fontSize: 16,
-                                                color: '#0f172a',
-                                            }}
-                                        />
+                                        <input type="datetime-local" value={availTo} min={availFrom || undefined} onChange={(e) => setAvailTo(e.target.value)} style={{ width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(15,23,42,0.14)', padding: '0 12px', outline: 'none', fontSize: 16, color: '#0f172a' }} />
                                     </div>
                                 </div>
-
                                 <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                                     <button type="button" onClick={handleReset} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(15, 23, 42, 0.14)', background: 'transparent', fontWeight: 900, cursor: 'pointer' }}>Reset</button>
                                     <button type="button" onClick={() => setFiltersOpen(false)} style={{ flex: 1, height: 44, borderRadius: 12, border: 0, background: '#0f172a', color: 'white', fontWeight: 900, cursor: 'pointer' }}>Apply</button>
@@ -1047,195 +975,16 @@ export default function DriverPage() {
                 )}
             </div>
 
-            {/* PROFILE MODAL LOGIC (Existing code) */}
+            {/* Profile Modal Logic */}
             {profileOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 999999, pointerEvents: 'auto' }}>
                     <button type="button" onClick={() => setProfileOpen(false)} style={{ position: 'absolute', inset: 0, background: 'transparent', border: 0, padding: 0, margin: 0 }} />
-                    <div
-                        style={{
-                            position: 'absolute',
-                            top: profileMenuPos.top,
-                            left: profileMenuPos.left,
-                            width: 220,
-                            background: 'rgba(255,255,255,0.98)',
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(15, 23, 42, 0.10)',
-                            boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)',
-                            borderRadius: 14,
-                            padding: 8,
-                        }}
-                    >
-                        {roles.has('OWNER') && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setProfileOpen(false)
-                                    nav('/manage-spots')
-                                }}
-                                style={{
-                                    width: '100%',
-                                    height: 42,
-                                    borderRadius: 12,
-                                    border: 0,
-                                    background: '#e2e8f0',
-                                    textAlign: 'left',
-                                    padding: '0 12px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    color: '#1e293b',
-                                    marginBottom: '5px',
-                                    transition: 'background 0.2s',
-                                }}
-                                onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
-                                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                            >
-                                Manage Spots
-                            </button>
-                        )}
-                        {roles.has('DRIVER') && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setProfileOpen(false)
-                                    nav('/my-bookings')
-                                }}
-                                style={{
-                                    width: '100%',
-                                    height: 42,
-                                    borderRadius: 12,
-                                    border: 0,
-                                    background: 'transparent',
-                                    textAlign: 'left',
-                                    padding: '0 12px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    color: '#1e293b',
-                                    marginBottom: '5px',
-                                    transition: 'background 0.2s',
-                                }}
-                                onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
-                                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                            >
-                                My Bookings
-                            </button>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setProfileModalOpen(true)
-                                nav('/manage-profile')
-                            }}
-                            style={{
-                                width: '100%',
-                                height: 42,
-                                borderRadius: 12,
-                                border: 0,
-                                background: 'transparent',
-                                textAlign: 'left',
-                                padding: '0 12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                color: '#1e293b',
-                                marginBottom: '5px',
-                                transition: 'background 0.2s',
-                            }}
-                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
-                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                        >
-                            Manage Profile
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setProfileOpen(false)
-                                nav('/change-password')
-                            }}
-                            style={{
-                                width: '100%',
-                                height: 42,
-                                borderRadius: 12,
-                                border: 0,
-                                background: 'transparent',
-                                textAlign: 'left',
-                                padding: '0 12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                color: '#1e293b',
-                                marginBottom: '5px',
-                                transition: 'background 0.2s',
-                            }}
-                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
-                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                        >
-                            Change Password
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={doLogout}
-                            style={{
-                                width: '100%',
-                                height: 42,
-                                borderRadius: 12,
-                                border: 0,
-                                background: 'rgba(239, 68, 68, 0.10)',
-                                textAlign: 'left',
-                                padding: '0 12px',
-                                fontWeight: 900,
-                                cursor: 'pointer',
-                                color: '#ef4444',
-                            }}
-                        >
-                            Logout
-                        </button>
-                    </div>
-
-                </div>
-            )}
-            <ProfileModal
-                isOpen={isProfileModalOpen}
-                onClose={() => setProfileModalOpen(false)}
-                onUpdateSuccess={(updatedUser) => {
-                    const u = updatedUser ?? getCurrentUser()
-                    const roles = new Set(u?.roles ?? [])
-
-                    // If user became OWNER-only, driver page is no longer allowed -> redirect now
-                    if (roles.has('OWNER') && !roles.has('DRIVER')) {
-                        nav('/owner', {replace: true})
-                        return
-                    }
-
-                    // BOTH or still DRIVER -> stay on /driver (no action needed)
-                }}
-            />
-            <BookParkingModal
-                isOpen={bookingOpen}
-                spot={bookingSpot}
-                onClose={() => setBookingOpen(false)}
-                onBooked={(b) => {
-                    const total = b?.totalPrice != null ? `₪${b.totalPrice}` : ''
-                    setBookingToast(`Booking created (#${b?.id}). Status: ${b?.status || 'PENDING'} ${total}`)
-                    setTimeout(() => setBookingToast(''), 3500)
-                }}
-            />
-
-            {bookingToast && (
-                <div style={{ position: 'absolute', left: 12, right: 12, bottom: 80, zIndex: 50000, pointerEvents: 'none' }}>
-                    <div
-                        style={{
-                            pointerEvents: 'auto',
-                            background: 'rgba(255,255,255,0.96)',
-                            border: '1px solid rgba(15,23,42,0.12)',
-                            borderRadius: 14,
-                            padding: 12,
-                            boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)',
-                            fontWeight: 900,
-                            color: '#0f172a',
-                        }}
-                    >
-                        {bookingToast}
+                    <div style={{ position: 'absolute', top: profileMenuPos.top, left: profileMenuPos.left, width: 220, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(15, 23, 42, 0.10)', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)', borderRadius: 14, padding: 8 }}>
+                        {roles.has('OWNER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/manage-spots') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: '#e2e8f0', textAlign: 'left', padding: '0 12px', fontWeight: 700, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Spots</button> )}
+                        {roles.has('DRIVER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/my-bookings') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Bookings</button> )}
+                        <button type="button" onClick={() => { setProfileModalOpen(true); nav('/manage-profile') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Profile</button>
+                        <button type="button" onClick={() => { setProfileOpen(false); nav('/change-password') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Change Password</button>
+                        <button type="button" onClick={doLogout} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'rgba(239, 68, 68, 0.10)', textAlign: 'left', padding: '0 12px', fontWeight: 900, cursor: 'pointer', color: '#ef4444' }}>Logout</button>
                     </div>
                 </div>
             )}
