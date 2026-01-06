@@ -60,4 +60,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            and b.status = 'APPROVED'
            """)
     Double calculateTotalExpensesForDriver(@Param("driverId") Long driverId);
+
+    @Query("""
+       select b from Booking b
+       where b.parking.id = :parkingId
+         and b.status in :activeStatuses
+         and b.startTime < :to
+         and b.endTime > :from
+       order by b.startTime asc
+       """)
+    List<Booking> findOverlaps(@Param("parkingId") Long parkingId,
+                               @Param("from") LocalDateTime from,
+                               @Param("to") LocalDateTime to,
+                               @Param("activeStatuses") Collection<BookingStatus> activeStatuses);
+
 }

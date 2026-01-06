@@ -29,3 +29,11 @@ export async function cancelBooking(id) {
     })
     return res.data
 }
+export async function getBusyIntervals(parkingId, from, to) {
+    const res = await axios.get(`http://localhost:8080/api/parking-spots/${parkingId}/busy`, {
+        params: { from, to },
+        headers: { Authorization: `Bearer ${localStorage.getItem('easypark_token')}` },
+    });
+    return res.data || [];
+}
+

@@ -233,11 +233,13 @@ export default function DriverPage() {
                     key={location.key}
                     spots={realSpots}
                     center={mapCenter}
+                    currentUserId={user?.id}
                     onSpotClick={(spot) => {
                         setBookingSpot(spot)
                         setBookingOpen(true)
                     }}
                 />
+
             </div>
 
             <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>

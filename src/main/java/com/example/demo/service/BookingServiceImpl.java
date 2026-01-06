@@ -53,6 +53,11 @@ public class BookingServiceImpl implements BookingService {
         if (!parking.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking spot is not active");
         }
+        // Prevent self-booking (driver cannot book their own parking spot)
+        if (parking.getOwnerId() != null && parking.getOwnerId().equals(driverId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot book your own parking spot");
+        }
+
         // Enforce owner's availability window (if defined)
         if (parking.getAvailableFrom() != null && req.getStartTime().isBefore(parking.getAvailableFrom())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start time is before the parking availability window");
