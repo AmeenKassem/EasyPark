@@ -190,7 +190,7 @@ export default function LoginPage() {
                     </button>
 
                     <div className="auth-bottom">
-                        <Link to="/reset-password">Forgot password?</Link>
+                        <Link to="/forgot-password">Forgot password?</Link>
                         <div>
                             Need an account? <Link to="/register">Sign up</Link>
                         </div>
