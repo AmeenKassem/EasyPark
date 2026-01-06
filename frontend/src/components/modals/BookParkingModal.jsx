@@ -6,6 +6,26 @@ function toInputDateTime(dt) {
     // "2026-01-05T10:00:00" -> "2026-01-05T10:00"
     return String(dt).slice(0, 16)
 }
+function validateRange(spot, startStr, endStr) {
+    if (!spot?.id) return 'Missing parking spot.';
+    if (!startStr || !endStr) return 'Start and End are required.';
+    if (startStr >= endStr) return 'Start time must be before end time.';
+
+    // Compare as Date to avoid edge cases
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+
+    if (spot?.availableFrom) {
+        const from = new Date(spot.availableFrom);
+        if (start < from) return 'Start time is before the parking availability window.';
+    }
+    if (spot?.availableTo) {
+        const to = new Date(spot.availableTo);
+        if (end > to) return 'End time is after the parking availability window.';
+    }
+    return null;
+}
+
 
 export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     const [saving, setSaving] = useState(false)
@@ -19,23 +39,51 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     })
 
     const canSubmit = useMemo(() => {
-        return !!spot?.id && form.startTime && form.endTime && form.startTime < form.endTime
-    }, [spot?.id, form.startTime, form.endTime])
+        if (!spot?.id) return false;
+        const err = validateRange(spot, form.startTime, form.endTime);
+        return !err;
+    }, [spot?.id, spot?.availableFrom, spot?.availableTo, form.startTime, form.endTime]);
+
 
     if (!isOpen) return null
 
     const onChange = (e) => {
-        const { name, value } = e.target
-        setForm((p) => ({ ...p, [name]: value }))
-    }
+        const { name, value } = e.target;
+
+        setForm((p) => {
+            const next = { ...p, [name]: value };
+
+            // Auto-fix end if start moves after end
+            if (name === 'startTime' && next.endTime && value && value >= next.endTime) {
+                next.endTime = '';
+            }
+
+            // Clamp to availability window if user typed something invalid
+            if (spot?.availableFrom) {
+                const min = toInputDateTime(spot.availableFrom);
+                if (next.startTime && next.startTime < min) next.startTime = min;
+                if (next.endTime && next.endTime < min) next.endTime = min;
+            }
+            if (spot?.availableTo) {
+                const max = toInputDateTime(spot.availableTo);
+                if (next.startTime && next.startTime > max) next.startTime = max;
+                if (next.endTime && next.endTime > max) next.endTime = max;
+            }
+
+            return next;
+        });
+    };
+
 
     const handleSubmit = async () => {
         setFeedback({ message: '', isError: false })
 
-        if (!canSubmit) {
-            setFeedback({ message: 'Please choose a valid time range.', isError: true })
-            return
+        const err = validateRange(spot, form.startTime, form.endTime);
+        if (err) {
+            setFeedback({ message: err, isError: true });
+            return;
         }
+
 
         setSaving(true)
         try {
@@ -49,13 +97,15 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
             setForm({ startTime: '', endTime: '' })
             onClose?.()
         } catch (e) {
-            const msg =
-                e?.response?.data?.message ||
-                e?.response?.data ||
-                e?.message ||
-                'Failed to create booking.'
-            setFeedback({ message: String(msg), isError: true })
-        } finally {
+        const data = e?.response?.data;
+        const msg =
+            data?.message ||
+            data?.error ||
+            (typeof data === 'string' ? data : '') ||
+            e?.message ||
+            'Failed to create booking.';
+        setFeedback({ message: String(msg), isError: true });
+    } finally {
             setSaving(false)
         }
     }
@@ -136,7 +186,7 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                             name="endTime"
                             value={form.endTime}
                             onChange={onChange}
-                            min={minStart || undefined}
+                            min={(form.startTime || minStart) || undefined}
                             max={maxEnd || undefined}
                             style={{
                                 width: '100%',
