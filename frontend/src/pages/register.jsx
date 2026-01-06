@@ -35,7 +35,7 @@ export default function RegisterPage() {
             email: email.trim(),
             phone: phone.trim(),
             password,
-            role: 'DRIVER',
+            role: 'BOTH',
         }
 
         try {
@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
             const token = data?.token || null
             loginUser({ user: data?.user, token })
-            nav('/dashboard')
+            nav('/driver')
         } catch (err) {
             setError(err?.message ? `Register error: ${err.message}` : 'Register error.')
         }
@@ -79,7 +79,7 @@ export default function RegisterPage() {
                     </p>
 
                     <form className="auth-form" onSubmit={onSubmit}>
-                        <div className="auth-row-two">
+
                             <div className="auth-field">
                                 <label>Full name</label>
                                 <input
@@ -91,9 +91,9 @@ export default function RegisterPage() {
                                 />
                             </div>
 
-                            {/* Role removed: users are always DRIVER */}
+                            {/* Role removed: users are always BOTH */}
                             <div className="auth-field" />
-                        </div>
+
 
                         <div className="auth-field">
                             <label>Email</label>

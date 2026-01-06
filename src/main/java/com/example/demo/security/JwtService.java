@@ -36,8 +36,16 @@ public class JwtService {
         Instant exp = now.plus(Duration.ofMinutes(expiryMinutes));
 
         String jwt = Jwts.builder()
-                .setSubject(user.getId().toString())
+                // CRITICAL: Set Subject as User ID (String) to prevent NumberFormatException in the Filter
+                .setSubject(String.valueOf(user.getId()))
+                
+                // CRITICAL: Add Role claim to prevent NullPointerException in the Filter
                 .claim("role", user.getRole().name())
+                
+                // OPTIONAL: Add email and name for frontend convenience (decoding token directly)
+                .claim("email", user.getEmail())
+                .claim("fullName", user.getFullName())
+                
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(exp))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

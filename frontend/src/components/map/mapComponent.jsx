@@ -5,9 +5,26 @@ import axios from 'axios'
 const containerStyle = { width: '100%', height: '100%' }
 const defaultCenter = { lat: 32.0853, lng: 34.7818 }
 
+// Style for the geolocation button
+const locateBtnStyle = {
+    position: 'absolute',
+    top: '145px', // Positioned below the search bar
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10,
+    backgroundColor: 'white',
+    border: '1px solid #ccc',
+    padding: '10px 20px',
+    borderRadius: '20px',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '14px',
+}
+
 const btnStyleWaze = {
     backgroundColor: '#33ccff',
-    color: '#fff',
+    color: 'black',
     border: 'none',
     padding: '8px 12px',
     borderRadius: '10px',
@@ -18,7 +35,7 @@ const btnStyleWaze = {
 
 const btnStyleGoogle = {
     backgroundColor: '#4285F4',
-    color: '#fff',
+    color: 'black',
     border: 'none',
     padding: '8px 12px',
     borderRadius: '10px',
@@ -37,12 +54,28 @@ export default function MapComponent({
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
 
+    const [myLocation, setMyLocation] = useState(null)
+    // State to control map center dynamically
+    const [mapCenter, setMapCenter] = useState(center)
+
     const { isLoaded, loadError } = useJsApiLoader({
         id: 'easypark-google-maps',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
     })
 
+    // --- CRITICAL UPDATE FOR SEARCH ---
+    // Update map center AND Pan to it when the prop changes
     useEffect(() => {
+        setMapCenter(center)
+        if (mapRef.current && center) {
+            mapRef.current.panTo(center);
+            // Optional: Zoom in slightly when a specific address is selected
+            // mapRef.current.setZoom(15); 
+        }
+    }, [center])
+
+    useEffect(() => {
+        // Only fetch from DB if spots prop is NOT provided
         if (Array.isArray(spots)) return
 
         const fetchSpots = async () => {
@@ -59,6 +92,47 @@ export default function MapComponent({
 
         fetchSpots()
     }, [spots])
+
+    // Function to handle user geolocation
+    const handleLocateUser = () => {
+        const options = {
+            enableHighAccuracy: false,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const newPos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+
+                setMyLocation(newPos);
+                setMapCenter(newPos);
+
+                if (mapRef.current) {
+                    mapRef.current.panTo(newPos);
+                    mapRef.current.setZoom(15);
+                }
+            },
+            (error) => {
+                console.error("Geolocation error:", error);
+                switch(error.code) {
+                    case 1: alert("Location access denied. Please check your browser or OS settings."); break;
+                    case 2: alert("Position unavailable. Please ensure Wi-Fi is enabled."); break;
+                    case 3: alert("Request timed out. Please try again."); break;
+                    default: alert(`Error retrieving location: ${error.message}`);
+                }
+            },
+            options
+        );
+    };
 
     const markerSpots = useMemo(() => {
         const src = Array.isArray(spots) ? spots : apiSpots
@@ -82,6 +156,7 @@ export default function MapComponent({
         if (app === 'waze') {
             window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank')
         } else {
+            // Corrected URL for Google Maps navigation
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
@@ -110,14 +185,30 @@ export default function MapComponent({
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
+            {/* My Location Button */}
+            <button
+                onClick={handleLocateUser}
+                style={locateBtnStyle}
+            >
+                📍 My Location
+            </button>
+
             <GoogleMap
                 mapContainerStyle={containerStyle}
-                center={center}
+                center={mapCenter}
                 zoom={zoom}
                 options={options}
                 onLoad={onLoad}
                 onUnmount={onUnmount}
             >
+                {myLocation && (
+                    <Marker
+                        position={myLocation}
+                        // Optional: if you want it to stand out, you can add a custom icon later
+                        // icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }}
+                    />
+                )}
+
                 {markerSpots.map((spot) => (
                     <Marker
                         key={spot.id ?? `${spot.lat}-${spot.lng}`}
@@ -135,18 +226,18 @@ export default function MapComponent({
                         onCloseClick={() => setSelectedSpot(null)}
                     >
                         <div style={{ minWidth: 240 }}>
-                            <h3 style={{ margin: '0 0 10px 0' }}>
+                            <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
                                 {selectedSpot.location ? `Parking at ${selectedSpot.location}` : 'Parking spot'}
                             </h3>
 
                             {selectedSpot.pricePerHour != null && (
-                                <p style={{ margin: '6px 0' }}>
+                                <p style={{ margin: '6px 0', color: 'black' }}>
                                     <strong>Price:</strong> ₪{selectedSpot.pricePerHour}/hr
                                 </p>
                             )}
 
                             {typeof selectedSpot.covered === 'boolean' && (
-                                <p style={{ margin: '6px 0' }}>
+                                <p style={{ margin: '6px 0', color: 'black' }}>
                                     <strong>Covered:</strong> {selectedSpot.covered ? 'Yes' : 'No'}
                                 </p>
                             )}

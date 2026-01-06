@@ -56,6 +56,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long userId = Long.valueOf(claims.getSubject());
             String role = (String) claims.get("role");
 
+            log.info("DIAGNOSTIC: Path={}", path);
+            log.info("DIAGNOSTIC: Token Subject (expecting ID) = '{}'", userId);
+            log.info("DIAGNOSTIC: Token Role (expecting String) = '{}'", role);
+
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
 
                 List<GrantedAuthority> authorities = switch (role) {
@@ -88,6 +92,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception ex) {
             // Do not log token. Log the exception type for debugging.
             log.warn("action=jwt_auth fail path={} reason={}", path, ex.getClass().getSimpleName());
+            log.error("CRITICAL AUTH ERROR on path={}", path);
+            log.error("Exception Type: {}", ex.getClass().getName());
+            log.error("Exception Message: {}", ex.getMessage());
             // IMPORTANT: do not block request here; let Spring Security handle authorization failure later.
         }
 

@@ -5,14 +5,95 @@ import SharedPage from '../pages/shared.jsx'
 import LoginPage from '../pages/login.jsx'
 import RegisterPage from '../pages/register.jsx'
 import ResetPasswordPage from '../pages/ResetPasswordPage.jsx'
+import CreateParkingPage from '../pages/CreateParkingPage.jsx'
+import NoPermissionPage from '../pages/NoPermissionPage.jsx'
+import ManageSpotsPage from '../pages/manageSpots.jsx'
+import ManageProfilePage from '../pages/manage-profile'
+import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
+import MyBookingsPage from '../pages/MyBookingsPage.jsx'
 
+
+import RequireRole from '../components/auth/RequireRole.jsx'
 
 export const router = createBrowserRouter([
-    { path: '/', element: <LoginPage /> },          // 👈 landing = login
-    { path: '/dashboard', element: <DriverPage /> }, // 👈 dashboard moved here
-    { path: '/driver', element: <DriverPage /> },
-    { path: '/owner', element: <OwnerPage /> },
-    { path: '/login', element: <LoginPage /> },      // keep for convenience
+    { path: '/', element: <LoginPage /> },
+    { path: '/login', element: <LoginPage /> },
     { path: '/register', element: <RegisterPage /> },
     { path: '/reset-password', element: <ResetPasswordPage /> },
+
+    // Optional: dashboard should be role-aware, not always DriverPage
+    {
+        path: '/dashboard',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <SharedPage />
+            </RequireRole>
+        ),
+    },
+
+    {
+        path: '/driver',
+        element: (
+            <RequireRole allow={['DRIVER']}>
+                <DriverPage />
+            </RequireRole>
+        ),
+    },
+
+    {
+        path: '/owner',
+        element: (
+            <RequireRole allow={['OWNER']}>
+                <OwnerPage />
+            </RequireRole>
+        ),
+    },
+
+    {
+        path: '/manage-spots',
+        element: (
+            <RequireRole allow={['OWNER']}>
+                <ManageSpotsPage />
+            </RequireRole>
+        ),
+    },
+
+    {
+        path: '/manage-profile',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <ManageProfilePage />
+            </RequireRole>
+        ),
+    },
+    {
+        path: '/change-password',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <ChangePasswordPage />
+            </RequireRole>
+        ),
+    },
+    {
+        path: '/my-bookings',
+        element: (
+            <RequireRole allow={['DRIVER']}>
+                <MyBookingsPage />
+            </RequireRole>
+        ),
+    },
+
+
+
+
+    {
+        path: '/create-parking',
+        element: (
+            <RequireRole allow={['OWNER']}>
+                <CreateParkingPage />
+            </RequireRole>
+        ),
+    },
+
+    { path: '/no-permission', element: <NoPermissionPage /> },
 ])
