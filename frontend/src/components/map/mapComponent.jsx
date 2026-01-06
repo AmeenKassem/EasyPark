@@ -31,6 +31,8 @@ const btnStyleWaze = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
+    height: 33,
+    marginTop: 23,
 }
 
 const btnStyleGoogle = {
@@ -43,7 +45,7 @@ const btnStyleGoogle = {
     flex: 1,
     fontWeight: 800,
     height: 33,
-    marginTop: 13,
+    marginTop: 23,
 }
 const btnStyleRequest = {
     backgroundColor: '#111827',  // you can choose any
