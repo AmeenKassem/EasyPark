@@ -39,7 +39,7 @@ export default function ChangePasswordPage() {
         if (!token) return 'You are not logged in.'
         if (!cur) return 'Current password is required.'
         if (!np) return 'New password is required.'
-        if (np.length < 6) return 'New password must be at least 6 characters.' // adjust if backend requires different
+        if (np.length < 8) return 'New password must be at least 8 characters.' // adjust if backend requires different
         if (np !== cnp) return 'New password and confirmation do not match.'
         if (cur === np) return 'New password must be different from current password.'
         return null
