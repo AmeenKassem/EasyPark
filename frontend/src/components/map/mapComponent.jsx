@@ -93,44 +93,73 @@ export default function MapComponent({
         fetchSpots()
     }, [spots])
 
-    // Function to handle user geolocation
+    // Function to handle user geolocation with Fallback strategy
     const handleLocateUser = () => {
-        const options = {
-            enableHighAccuracy: false,
-            timeout: 10000,
-            maximumAge: 0
-        };
-
         if (!navigator.geolocation) {
             alert("Geolocation is not supported by your browser.");
             return;
         }
 
+        // Shared success callback (used by both High and Low accuracy attempts)
+        const onPositionSuccess = (position) => {
+            const newPos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+
+            setMyLocation(newPos);
+            setMapCenter(newPos);
+
+            if (mapRef.current) {
+                mapRef.current.panTo(newPos);
+                mapRef.current.setZoom(15);
+            }
+        };
+
+        // Final error handler (to be called if the fallback also fails)
+        const onFinalError = (error) => {
+            console.error("Geolocation final error:", error);
+            switch(error.code) {
+                case 1: alert("Location access denied. Please check your browser or OS settings."); break;
+                case 2: alert("Position unavailable. Please ensure Wi-Fi is enabled."); break;
+                case 3: alert("Request timed out. Please try again."); break;
+                default: alert(`Error retrieving location: ${error.message}`);
+            }
+        };
+
+        // Options for the first attempt (High Accuracy / GPS)
+        const highAccuracyOptions = {
+            enableHighAccuracy: true,
+            timeout: 10000, // 10 seconds to get a GPS fix
+            maximumAge: 0
+        };
+
+        // Attempt 1: Try with High Accuracy
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const newPos = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
+            onPositionSuccess,
+            (error) => {
+                console.warn("High accuracy lookup failed. Attempting fallback...", error);
+
+                // If permission is denied (code 1), retrying won't help. Show error immediately.
+                if (error.code === 1) {
+                    onFinalError(error);
+                    return;
+                }
+
+                // Attempt 2: Fallback to Low Accuracy (Wi-Fi / Cellular)
+                const lowAccuracyOptions = {
+                    enableHighAccuracy: false,
+                    timeout: 10000,
+                    maximumAge: 0
                 };
 
-                setMyLocation(newPos);
-                setMapCenter(newPos);
-
-                if (mapRef.current) {
-                    mapRef.current.panTo(newPos);
-                    mapRef.current.setZoom(15);
-                }
+                navigator.geolocation.getCurrentPosition(
+                    onPositionSuccess,
+                    onFinalError, // If this also fails, show the alert
+                    lowAccuracyOptions
+                );
             },
-            (error) => {
-                console.error("Geolocation error:", error);
-                switch(error.code) {
-                    case 1: alert("Location access denied. Please check your browser or OS settings."); break;
-                    case 2: alert("Position unavailable. Please ensure Wi-Fi is enabled."); break;
-                    case 3: alert("Request timed out. Please try again."); break;
-                    default: alert(`Error retrieving location: ${error.message}`);
-                }
-            },
-            options
+            highAccuracyOptions
         );
     };
 
@@ -202,11 +231,35 @@ export default function MapComponent({
                 onUnmount={onUnmount}
             >
                 {myLocation && (
-                    <Marker
-                        position={myLocation}
-                        // Optional: if you want it to stand out, you can add a custom icon later
-                        // icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }}
-                    />
+                    <>
+                        {/* Layer 1: Outer beam/halo (background layer) */}
+                        <Marker
+                            position={myLocation}
+                            zIndex={1} // Lower z-index so it appears behind the dot
+                            clickable={false} // Ensures the halo doesn't intercept clicks
+                            icon={{
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 20, // Size of the halo - significantly larger than the dot
+                                fillColor: '#4285F4', // Same blue color
+                                fillOpacity: 0.3, // High transparency (30%) to create the light effect
+                                strokeWeight: 0, // No border for the halo
+                            }}
+                        />
+
+                        {/* Layer 2: The center dot (foreground layer) */}
+                        <Marker
+                            position={myLocation}
+                            zIndex={2} // Higher z-index so it appears on top
+                            icon={{
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 8, // Size of the solid dot
+                                fillColor: '#4285F4',
+                                fillOpacity: 1, // Solid color
+                                strokeColor: '#ffffff', // White border
+                                strokeWeight: 2,
+                            }}
+                        />
+                    </>
                 )}
 
                 {markerSpots.map((spot) => (
