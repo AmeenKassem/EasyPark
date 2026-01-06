@@ -49,7 +49,7 @@ export default function RegisterPage() {
             lastName.trim().length >= 2 &&
             email.trim().length >= 5 &&
             phone.toString().trim().length >= 8 &&
-            password.length >= 6
+            password.length >= 8
         )
     }, [firstName, lastName, email, phone, password])
 
@@ -84,7 +84,7 @@ export default function RegisterPage() {
         else if (!isValidPhoneNumber(e164)) next.phone = 'Phone number is not valid'
 
         // Password
-        if (pass.length < 6) next.password = 'Password must be at least 6 characters'
+        if (pass.length < 8) next.password = 'Password must be at least 8 characters'
 
         return { next, e164 }
     }
