@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.BookedIntervalResponse;
 import com.example.demo.dto.CreateParkingRequest;
 import com.example.demo.dto.ParkingResponse;
 import com.example.demo.dto.UpdateParkingRequest;
@@ -14,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -100,4 +102,18 @@ public class ParkingController {
         log.info("action=parking_search success count={}", out.size());
         return ResponseEntity.ok(out);
     }
+    @GetMapping("/{id}/busy")
+    public ResponseEntity<List<BookedIntervalResponse>> busy(
+            @PathVariable Long id,
+            @RequestParam(required = false) LocalDateTime from,
+            @RequestParam(required = false) LocalDateTime to
+    ) {
+        log.info("action=parking_busy start parkingId={} from={} to={}", id, from, to);
+
+        List<BookedIntervalResponse> out = parkingService.getBusyIntervals(id, from, to);
+
+        log.info("action=parking_busy success parkingId={} count={}", id, out.size());
+        return ResponseEntity.ok(out);
+    }
+
 }

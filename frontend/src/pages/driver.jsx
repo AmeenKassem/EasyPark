@@ -641,6 +641,8 @@ export default function DriverPage() {
     const [bookingOpen, setBookingOpen] = useState(false)
     const [bookingSpot, setBookingSpot] = useState(null)
     const [bookingToast, setBookingToast] = useState('')
+    const [availFrom, setAvailFrom] = useState('') // datetime-local string
+    const [availTo, setAvailTo] = useState('')     // datetime-local string
 
     useEffect(() => {
         return subscribeAuthChanged(() => setUser(getCurrentUser()))
@@ -653,8 +655,7 @@ export default function DriverPage() {
     const [filtersOpen, setFiltersOpen] = useState(false)
     const [coveredOnly, setCoveredOnly] = useState(false)
     const [activeOnly, setActiveOnly] = useState(true)
-    const [maxPrice, setMaxPrice] = useState(100)
-    const [searchBounds, setSearchBounds] = useState(null)
+    const [maxPrice, setMaxPrice] = useState('') // empty = no max price filter
 
     // Data State
     const [realSpots, setRealSpots] = useState([])
@@ -684,7 +685,8 @@ export default function DriverPage() {
             try {
                 const params = {};
                 if (coveredOnly) params.covered = true;
-                if (maxPrice < 100) params.maxPrice = maxPrice;
+                const max = Number(maxPrice);
+                if (Number.isFinite(max) && max > 0) params.maxPrice = max;
 
                 const response = await axios.get('http://localhost:8080/api/parking-spots/search', {
                     params,
@@ -696,8 +698,34 @@ export default function DriverPage() {
                 if (activeOnly) {
                     data = data.filter(s => s.active === true);
                 }
+                // 3. Availability window filter (client-side)
+// Show only spots whose availability covers the requested interval.
+                if (availFrom && availTo) {
+                    const wantFrom = new Date(availFrom)
+                    const wantTo = new Date(availTo)
 
-                // GEOSPATIAL FILTER: Only if bounds exist
+                    data = data.filter((s) => {
+                        if (!s?.availableFrom || !s?.availableTo) return true
+                        const spotFrom = new Date(s.availableFrom)
+                        const spotTo = new Date(s.availableTo)
+                        return spotFrom <= wantFrom && spotTo >= wantTo
+                    })
+                } else if (availFrom) {
+                    const wantFrom = new Date(availFrom)
+                    data = data.filter((s) => {
+                        if (!s?.availableFrom) return false
+                        return new Date(s.availableFrom) <= wantFrom
+                    })
+                } else if (availTo) {
+                    const wantTo = new Date(availTo)
+                    data = data.filter((s) => {
+                        if (!s?.availableTo) return false
+                        return new Date(s.availableTo) >= wantTo
+                    })
+                }
+
+                // 2. GEOSPATIAL FILTER: Bounds Check (Viewport)
+                // This solves the language issue ("Ashdod" == "אשדוד") because both return the same coordinates box
                 if (searchBounds) {
                     data = data.filter(s => {
                         // Fix 5: Robust coordinate check (0 is valid)
@@ -720,7 +748,7 @@ export default function DriverPage() {
         };
 
         fetchSpots();
-    }, [coveredOnly, maxPrice, activeOnly, searchBounds]); // address removed!
+    }, [address, coveredOnly, maxPrice, activeOnly, searchBounds,availFrom,availTo]); // Re-run when bounds change
 
     // --- HELPER: Fetch Place Details Manually (Fix 3) ---
     const fetchFirstPredictionDetails = (inputText) => {
@@ -840,7 +868,7 @@ export default function DriverPage() {
         setSearchBounds(null); 
         setCoveredOnly(false);
         setActiveOnly(true);
-        setMaxPrice(100);
+        setMaxPrice('');
     }
 
     // ... (Logout & Profile Helpers - Unchanged) ...
@@ -858,11 +886,13 @@ export default function DriverPage() {
                     center={mapCenter}
                     // Fix 2: Getting the map instance from child
                     onMapLoad={(map) => mapRef.current = map}
+                    currentUserId={user?.id}
                     onSpotClick={(spot) => {
                         setBookingSpot(spot)
                         setBookingOpen(true)
                     }}
                 />
+
             </div>
 
             {/* HEADER, SEARCH BAR, FOOTER, MODALS - (Keeping structure identical) */}
@@ -934,9 +964,78 @@ export default function DriverPage() {
                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Active only</span><input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /></label>
                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Covered only</span><input type="checkbox" checked={coveredOnly} onChange={(e) => setCoveredOnly(e.target.checked)} /></label>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><span style={{ fontWeight: 800, color: '#0f172a' }}>Max price</span><span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice}/hr</span></div>
-                                    <input type="range" min="0" max="100" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} style={{ width: '100%' }} />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                        <span style={{ fontWeight: 800, color: '#0f172a' }}>Max price</span>
+                                        <span style={{ fontWeight: 900, color: '#64748b' }}>{maxPrice ? `${maxPrice}/hr` : 'Any'}</span>
+                                    </div>
+
+
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min="1"
+                                        step="1"
+                                        placeholder="e.g. 100"
+                                        value={maxPrice}
+                                        onChange={(e) => setMaxPrice(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            height: 44,
+                                            borderRadius: 12,
+                                            border: '1px solid rgba(15,23,42,0.14)',
+                                            padding: '0 12px',
+                                            outline: 'none',
+                                            fontSize: 16,
+                                            color: '#0f172a',
+                                        }}
+                                    />
                                 </div>
+                                <div style={{ display: 'grid', gap: 10 }}>
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available from</div>
+                                        <input
+                                            type="datetime-local"
+                                            value={availFrom}
+                                            onChange={(e) => {
+                                                const v = e.target.value
+                                                setAvailFrom(v)
+                                                // keep range valid
+                                                if (availTo && v && v > availTo) setAvailTo('')
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                height: 44,
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(15,23,42,0.14)',
+                                                padding: '0 12px',
+                                                outline: 'none',
+                                                fontSize: 16,
+                                                color: '#0f172a',
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Available to</div>
+                                        <input
+                                            type="datetime-local"
+                                            value={availTo}
+                                            min={availFrom || undefined}
+                                            onChange={(e) => setAvailTo(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                height: 44,
+                                                borderRadius: 12,
+                                                border: '1px solid rgba(15,23,42,0.14)',
+                                                padding: '0 12px',
+                                                outline: 'none',
+                                                fontSize: 16,
+                                                color: '#0f172a',
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                                     <button type="button" onClick={handleReset} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(15, 23, 42, 0.14)', background: 'transparent', fontWeight: 900, cursor: 'pointer' }}>Reset</button>
                                     <button type="button" onClick={() => setFiltersOpen(false)} style={{ flex: 1, height: 44, borderRadius: 12, border: 0, background: '#0f172a', color: 'white', fontWeight: 900, cursor: 'pointer' }}>Apply</button>
@@ -952,11 +1051,191 @@ export default function DriverPage() {
             {profileOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 999999, pointerEvents: 'auto' }}>
                     <button type="button" onClick={() => setProfileOpen(false)} style={{ position: 'absolute', inset: 0, background: 'transparent', border: 0, padding: 0, margin: 0 }} />
-                    <div style={{ position: 'absolute', top: profileMenuPos.top, left: profileMenuPos.left, width: 220, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(15, 23, 42, 0.10)', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)', borderRadius: 14, padding: 8 }}>
-                        {roles.has('OWNER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/manage-spots') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: '#e2e8f0', textAlign: 'left', padding: '0 12px', fontWeight: 700, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Spots</button> )}
-                        {roles.has('DRIVER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/my-bookings') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Bookings</button> )}
-                        <button type="button" onClick={() => { setProfileModalOpen(true); nav('/manage-profile') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Profile</button>
-                        <button type="button" onClick={doLogout} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'rgba(239, 68, 68, 0.10)', textAlign: 'left', padding: '0 12px', fontWeight: 900, cursor: 'pointer', color: '#ef4444' }}>Logout</button>
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: profileMenuPos.top,
+                            left: profileMenuPos.left,
+                            width: 220,
+                            background: 'rgba(255,255,255,0.98)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(15, 23, 42, 0.10)',
+                            boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)',
+                            borderRadius: 14,
+                            padding: 8,
+                        }}
+                    >
+                        {roles.has('OWNER') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setProfileOpen(false)
+                                    nav('/manage-spots')
+                                }}
+                                style={{
+                                    width: '100%',
+                                    height: 42,
+                                    borderRadius: 12,
+                                    border: 0,
+                                    background: '#e2e8f0',
+                                    textAlign: 'left',
+                                    padding: '0 12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    color: '#1e293b',
+                                    marginBottom: '5px',
+                                    transition: 'background 0.2s',
+                                }}
+                                onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                                Manage Spots
+                            </button>
+                        )}
+                        {roles.has('DRIVER') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setProfileOpen(false)
+                                    nav('/my-bookings')
+                                }}
+                                style={{
+                                    width: '100%',
+                                    height: 42,
+                                    borderRadius: 12,
+                                    border: 0,
+                                    background: 'transparent',
+                                    textAlign: 'left',
+                                    padding: '0 12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    color: '#1e293b',
+                                    marginBottom: '5px',
+                                    transition: 'background 0.2s',
+                                }}
+                                onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                                My Bookings
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setProfileModalOpen(true)
+                                nav('/manage-profile')
+                            }}
+                            style={{
+                                width: '100%',
+                                height: 42,
+                                borderRadius: 12,
+                                border: 0,
+                                background: 'transparent',
+                                textAlign: 'left',
+                                padding: '0 12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                color: '#1e293b',
+                                marginBottom: '5px',
+                                transition: 'background 0.2s',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            Manage Profile
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setProfileOpen(false)
+                                nav('/change-password')
+                            }}
+                            style={{
+                                width: '100%',
+                                height: 42,
+                                borderRadius: 12,
+                                border: 0,
+                                background: 'transparent',
+                                textAlign: 'left',
+                                padding: '0 12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                color: '#1e293b',
+                                marginBottom: '5px',
+                                transition: 'background 0.2s',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            Change Password
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={doLogout}
+                            style={{
+                                width: '100%',
+                                height: 42,
+                                borderRadius: 12,
+                                border: 0,
+                                background: 'rgba(239, 68, 68, 0.10)',
+                                textAlign: 'left',
+                                padding: '0 12px',
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                                color: '#ef4444',
+                            }}
+                        >
+                            Logout
+                        </button>
+                    </div>
+
+                </div>
+            )}
+            <ProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setProfileModalOpen(false)}
+                onUpdateSuccess={(updatedUser) => {
+                    const u = updatedUser ?? getCurrentUser()
+                    const roles = new Set(u?.roles ?? [])
+
+                    // If user became OWNER-only, driver page is no longer allowed -> redirect now
+                    if (roles.has('OWNER') && !roles.has('DRIVER')) {
+                        nav('/owner', {replace: true})
+                        return
+                    }
+
+                    // BOTH or still DRIVER -> stay on /driver (no action needed)
+                }}
+            />
+            <BookParkingModal
+                isOpen={bookingOpen}
+                spot={bookingSpot}
+                onClose={() => setBookingOpen(false)}
+                onBooked={(b) => {
+                    const total = b?.totalPrice != null ? `₪${b.totalPrice}` : ''
+                    setBookingToast(`Booking created (#${b?.id}). Status: ${b?.status || 'PENDING'} ${total}`)
+                    setTimeout(() => setBookingToast(''), 3500)
+                }}
+            />
+
+            {bookingToast && (
+                <div style={{ position: 'absolute', left: 12, right: 12, bottom: 80, zIndex: 50000, pointerEvents: 'none' }}>
+                    <div
+                        style={{
+                            pointerEvents: 'auto',
+                            background: 'rgba(255,255,255,0.96)',
+                            border: '1px solid rgba(15,23,42,0.12)',
+                            borderRadius: 14,
+                            padding: 12,
+                            boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)',
+                            fontWeight: 900,
+                            color: '#0f172a',
+                        }}
+                    >
+                        {bookingToast}
                     </div>
                 </div>
             )}

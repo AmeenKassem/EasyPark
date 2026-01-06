@@ -43,14 +43,26 @@ const btnStyleGoogle = {
     flex: 1,
     fontWeight: 800,
 }
+const btnStyleRequest = {
+    backgroundColor: '#111827',  // you can choose any
+    color: 'white',
+    border: 'none',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    flex: 1,
+    fontWeight: 800,
+}
 
 export default function MapComponent({
                                          spots = null,
                                          center = defaultCenter,
                                          zoom = 13,
                                          onSpotClick = null,
+                                         currentUserId = null,
                                          onMapLoad = null
                                      }) {
+
     const mapRef = useRef(null)
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
@@ -216,6 +228,7 @@ export default function MapComponent({
     if (!isLoaded) {
         return <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
     }
+    const isMine = Boolean(currentUserId && selectedSpot?.ownerId != null && Number(selectedSpot.ownerId) === Number(currentUserId));
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
@@ -273,7 +286,7 @@ export default function MapComponent({
                         position={{ lat: Number(spot.lat), lng: Number(spot.lng) }}
                         onClick={() => {
                             setSelectedSpot(spot)
-                            if (onSpotClick) onSpotClick(spot)
+                            //if (onSpotClick) onSpotClick(spot)
                         }}
                     />
                 ))}
@@ -315,6 +328,32 @@ export default function MapComponent({
                                 >
                                     Maps
                                 </button>
+                                {onSpotClick && (
+                                    <div style={{ marginTop: 12 }}>
+                                        {isMine && (
+                                            <div style={{ marginBottom: 10, color: '#111827', fontWeight: 700 }}>
+                                                This parking spot is yours
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            disabled={isMine}
+                                            onClick={() => onSpotClick(selectedSpot)}
+                                            style={{
+                                                ...btnStyleRequest,
+                                                width: '100%',
+                                                opacity: isMine ? 0.55 : 1,
+                                                cursor: isMine ? 'not-allowed' : 'pointer',
+                                            }}
+                                            title={isMine ? "You can't request a booking from yourself" : 'Request booking'}
+                                        >
+                                            Request booking
+                                        </button>
+                                    </div>
+                                )}
+
+
                             </div>
                         </div>
                     </InfoWindow>
