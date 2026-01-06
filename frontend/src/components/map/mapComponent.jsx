@@ -49,6 +49,7 @@ export default function MapComponent({
                                          center = defaultCenter,
                                          zoom = 13,
                                          onSpotClick = null,
+                                         onMapLoad = null
                                      }) {
     const mapRef = useRef(null)
     const [apiSpots, setApiSpots] = useState([])
@@ -81,7 +82,8 @@ export default function MapComponent({
         const fetchSpots = async () => {
             try {
                 const res = await axios.get('http://localhost:8080/api/parking-spots/search')
-                const valid = (res.data || []).filter((s) => s?.lat != null && s?.lng != null && s?.active)
+                // Fix: Check for null/undefined explicitly, keeping 0 valid
+                const valid = (res.data || []).filter((s) => s.lat != null && s.lng != null && s?.active)
                 setApiSpots(valid)
             } catch (e) {
                 // eslint-disable-next-line no-console
@@ -192,6 +194,9 @@ export default function MapComponent({
 
     const onLoad = (map) => {
         mapRef.current = map
+        if (onMapLoad) {
+            onMapLoad(map);
+        }
         setTimeout(() => {
             if (window.google?.maps?.event && mapRef.current) {
                 window.google.maps.event.trigger(mapRef.current, 'resize')
