@@ -13,8 +13,10 @@
     "@react-google-maps/api": "^2.20.8",
     "@react-oauth/google": "^0.13.0",
     "axios": "^1.13.2",
+    "libphonenumber-js": "^1.12.33",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-phone-input-2": "^2.15.1",
     "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
