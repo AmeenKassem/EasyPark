@@ -101,10 +101,10 @@ export default function ManageSpotsPage() {
             setBookingsLoading(false)
         }
     }
+ 
     useEffect(() => {
-        if (tab === 'bookings') {
-            fetchOwnerBookings()
-        }
+        fetchMySpots();
+        fetchOwnerBookings();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tab])
     const updateBookingStatus = async (bookingId, status) => {
@@ -263,10 +263,6 @@ export default function ManageSpotsPage() {
                 {error && <div className="ep-ms-error">{error}</div>}
 
                 <div className="ep-ms-cardsRow">
-                    <div className="ep-ms-statCard">
-                        <div className="ep-ms-statLabel">Total Earnings</div>
-                        <div className="ep-ms-statValue">₪{totalEarnings}</div>
-                    </div>
 
                     <div className="ep-ms-statCard">
                         <div className="ep-ms-statLabel">Active Spots</div>
