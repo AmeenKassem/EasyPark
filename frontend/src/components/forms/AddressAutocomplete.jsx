@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Autocomplete } from '@react-google-maps/api'; 
+import { Autocomplete } from '@react-google-maps/api';
 
-const AddressAutocomplete = ({ onAddressSelect }) => {
+const AddressAutocomplete = ({ onAddressSelect, options }) => {
   const [autocomplete, setAutocomplete] = useState(null);
 
   const onLoad = (autocompleteInstance) => {
@@ -20,8 +20,11 @@ const AddressAutocomplete = ({ onAddressSelect }) => {
       const lat = place.geometry.location.lat();
       const lng = place.geometry.location.lng();
       const address = place.formatted_address;
+      // Extract components to check for street number later
+      const address_components = place.address_components;
 
-      onAddressSelect({ lat, lng, address });
+      // Pass components up to the parent
+      onAddressSelect({ lat, lng, address, address_components });
     }
   };
 
@@ -30,13 +33,16 @@ const AddressAutocomplete = ({ onAddressSelect }) => {
       <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
         Parking Location
       </label>
+
+      {/* Pass the 'options' prop to Google's Autocomplete */}
       <Autocomplete
         onLoad={onLoad}
         onPlaceChanged={onPlaceChanged}
+        options={options}
       >
         <input
           type="text"
-          placeholder="Search address..."
+          placeholder="Search address (e.g. Herzl 15)..."
           style={{
             width: '100%',
             padding: '12px',
