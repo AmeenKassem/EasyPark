@@ -101,7 +101,7 @@ export default function ManageSpotsPage() {
             setBookingsLoading(false)
         }
     }
- 
+
     useEffect(() => {
         fetchMySpots();
         fetchOwnerBookings();
