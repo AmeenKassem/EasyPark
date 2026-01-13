@@ -217,13 +217,9 @@ export default function MapComponent({
     // This removes numbers from the address string to protect privacy
     const getObscuredAddress = (fullAddress) => {
         if (!fullAddress) return 'Parking spot';
-
-        // Remove all digits (0-9)
-        let safeAddr = fullAddress.replace(/[0-9]/g, '');
-
         // Clean up double spaces or floating commas left behind
         // e.g. "Herzl , Tel Aviv" -> "Herzl, Tel Aviv"
-        safeAddr = safeAddr.replace(/\s+,/g, ',').replace(/\s\s+/g, ' ').trim();
+        let safeAddr = fullAddress.replace(/\s+,/g, ',').replace(/\s\s+/g, ' ').trim();
 
         return `Parking at ${safeAddr}`;
     };
