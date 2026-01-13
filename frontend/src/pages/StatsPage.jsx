@@ -39,9 +39,9 @@ export default function StatsPage() {
     if (!stats) return <Layout><div style={{padding: 20}}>No data available.</div></Layout>;
 
     const isOwner = userRole === 'OWNER';
-    const title = isOwner ? 'Owner Dashboard' : 'Driver Report';
+    const title = isOwner ? 'Statistics' : 'Driver Report';
     const moneyLabel = isOwner ? 'Total Revenue' : 'Total Expenses';
-    const moneyColor = isOwner ? '#166534' : '#991b1b'; // ירוק להכנסות, אדום להוצאות
+    const moneyColor = isOwner ? '#166534' : '#991b1b';
     const moneyBg = isOwner ? '#dcfce7' : '#fee2e2';
 
     const totalMoney = isOwner ? stats.totalRevenue : stats.totalExpenses;

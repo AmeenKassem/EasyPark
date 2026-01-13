@@ -8,18 +8,20 @@ const defaultCenter = { lat: 32.0853, lng: 34.7818 }
 // Style for the geolocation button
 const locateBtnStyle = {
     position: 'absolute',
-    top: '145px', // Positioned below the search bar
-    left: '50%',
-    transform: 'translateX(-50%)',
+    bottom: '70px',
+    left: '10px',
     zIndex: 10,
     backgroundColor: 'white',
-    border: '1px solid #ccc',
-    padding: '10px 20px',
-    borderRadius: '20px',
+    border: 'none',
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
     boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
     cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
 }
 
 const btnStyleWaze = {
@@ -31,6 +33,8 @@ const btnStyleWaze = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
+    height: 33,
+    marginTop: 23,
 }
 
 const btnStyleGoogle = {
@@ -43,10 +47,10 @@ const btnStyleGoogle = {
     flex: 1,
     fontWeight: 800,
     height: 33,
-    marginTop: 13,
+    marginTop: 23,
 }
 const btnStyleRequest = {
-    backgroundColor: '#111827',  // you can choose any
+    backgroundColor: '#111827',
     color: 'white',
     border: 'none',
     padding: '10px 12px',
@@ -72,7 +76,6 @@ export default function MapComponent({
     const [selectedSpot, setSelectedSpot] = useState(null)
 
     const [myLocation, setMyLocation] = useState(null)
-    // State to control map center dynamically
     const [mapCenter, setMapCenter] = useState(center)
 
     const { isLoaded, loadError } = useJsApiLoader({
@@ -80,29 +83,22 @@ export default function MapComponent({
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
     })
 
-    // --- CRITICAL UPDATE FOR SEARCH ---
-    // Update map center AND Pan to it when the prop changes
     useEffect(() => {
         setMapCenter(center)
         if (mapRef.current && center) {
             mapRef.current.panTo(center);
-            // Optional: Zoom in slightly when a specific address is selected
-            // mapRef.current.setZoom(15); 
         }
     }, [center])
 
     useEffect(() => {
-        // Only fetch from DB if spots prop is NOT provided
         if (Array.isArray(spots)) return
 
         const fetchSpots = async () => {
             try {
                 const res = await axios.get('http://localhost:8080/api/parking-spots/search')
-                // Fix: Check for null/undefined explicitly, keeping 0 valid
                 const valid = (res.data || []).filter((s) => s.lat != null && s.lng != null && s?.active)
                 setApiSpots(valid)
             } catch (e) {
-                // eslint-disable-next-line no-console
                 console.error('Error fetching parking spots:', e)
                 setApiSpots([])
             }
@@ -111,14 +107,12 @@ export default function MapComponent({
         fetchSpots()
     }, [spots])
 
-    // Function to handle user geolocation with Fallback strategy
     const handleLocateUser = () => {
         if (!navigator.geolocation) {
             alert("Geolocation is not supported by your browser.");
             return;
         }
 
-        // Shared success callback (used by both High and Low accuracy attempts)
         const onPositionSuccess = (position) => {
             const newPos = {
                 lat: position.coords.latitude,
@@ -134,7 +128,6 @@ export default function MapComponent({
             }
         };
 
-        // Final error handler (to be called if the fallback also fails)
         const onFinalError = (error) => {
             console.error("Geolocation final error:", error);
             switch(error.code) {
@@ -145,26 +138,22 @@ export default function MapComponent({
             }
         };
 
-        // Options for the first attempt (High Accuracy / GPS)
         const highAccuracyOptions = {
             enableHighAccuracy: true,
-            timeout: 10000, // 10 seconds to get a GPS fix
+            timeout: 10000,
             maximumAge: 0
         };
 
-        // Attempt 1: Try with High Accuracy
         navigator.geolocation.getCurrentPosition(
             onPositionSuccess,
             (error) => {
                 console.warn("High accuracy lookup failed. Attempting fallback...", error);
 
-                // If permission is denied (code 1), retrying won't help. Show error immediately.
                 if (error.code === 1) {
                     onFinalError(error);
                     return;
                 }
 
-                // Attempt 2: Fallback to Low Accuracy (Wi-Fi / Cellular)
                 const lowAccuracyOptions = {
                     enableHighAccuracy: false,
                     timeout: 10000,
@@ -173,7 +162,7 @@ export default function MapComponent({
 
                 navigator.geolocation.getCurrentPosition(
                     onPositionSuccess,
-                    onFinalError, // If this also fails, show the alert
+                    onFinalError,
                     lowAccuracyOptions
                 );
             },
@@ -203,7 +192,6 @@ export default function MapComponent({
         if (app === 'waze') {
             window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank')
         } else {
-            // Corrected URL for Google Maps navigation
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
@@ -225,6 +213,18 @@ export default function MapComponent({
         setSelectedSpot(null)
     }
 
+    // --- NEW HELPER FUNCTION: Obscure Address ---
+    // This removes numbers from the address string to protect privacy
+    const getObscuredAddress = (fullAddress) => {
+        if (!fullAddress) return 'Parking spot';
+        // Clean up double spaces or floating commas left behind
+        // e.g. "Herzl , Tel Aviv" -> "Herzl, Tel Aviv"
+        let safeAddr = fullAddress.replace(/\s+,/g, ',').replace(/\s\s+/g, ' ').trim();
+
+        return `Parking at ${safeAddr}`;
+    };
+    // --------------------------------------------
+
     if (loadError) {
         return <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
     }
@@ -236,12 +236,21 @@ export default function MapComponent({
 
     return (
         <div style={{ position: 'absolute', inset: 0 }}>
-            {/* My Location Button */}
             <button
                 onClick={handleLocateUser}
                 style={locateBtnStyle}
+                title="Show Your Location"
             >
-                📍 My Location
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    height="24px"
+                    viewBox="0 0 24 24"
+                    width="24px"
+                    fill="#444"
+                >
+                    <path d="M0 0h24v24H0V0z" fill="none"/>
+                    <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                </svg>
             </button>
 
             <GoogleMap
@@ -254,30 +263,27 @@ export default function MapComponent({
             >
                 {myLocation && (
                     <>
-                        {/* Layer 1: Outer beam/halo (background layer) */}
                         <Marker
                             position={myLocation}
-                            zIndex={1} // Lower z-index so it appears behind the dot
-                            clickable={false} // Ensures the halo doesn't intercept clicks
+                            zIndex={1}
+                            clickable={false}
                             icon={{
                                 path: google.maps.SymbolPath.CIRCLE,
-                                scale: 20, // Size of the halo - significantly larger than the dot
-                                fillColor: '#4285F4', // Same blue color
-                                fillOpacity: 0.3, // High transparency (30%) to create the light effect
-                                strokeWeight: 0, // No border for the halo
+                                scale: 20,
+                                fillColor: '#4285F4',
+                                fillOpacity: 0.3,
+                                strokeWeight: 0,
                             }}
                         />
-
-                        {/* Layer 2: The center dot (foreground layer) */}
                         <Marker
                             position={myLocation}
-                            zIndex={2} // Higher z-index so it appears on top
+                            zIndex={2}
                             icon={{
                                 path: google.maps.SymbolPath.CIRCLE,
-                                scale: 8, // Size of the solid dot
+                                scale: 8,
                                 fillColor: '#4285F4',
-                                fillOpacity: 1, // Solid color
-                                strokeColor: '#ffffff', // White border
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
                                 strokeWeight: 2,
                             }}
                         />
@@ -290,7 +296,6 @@ export default function MapComponent({
                         position={{ lat: Number(spot.lat), lng: Number(spot.lng) }}
                         onClick={() => {
                             setSelectedSpot(spot)
-                            //if (onSpotClick) onSpotClick(spot)
                         }}
                     />
                 ))}
@@ -302,7 +307,8 @@ export default function MapComponent({
                     >
                         <div style={{ minWidth: 240 }}>
                             <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
-                                {selectedSpot.location ? `Parking at ${selectedSpot.location}` : 'Parking spot'}
+                                {/* Updated: Using the helper function to hide numbers */}
+                                {getObscuredAddress(selectedSpot.location)}
                             </h3>
 
                             {selectedSpot.pricePerHour != null && (
@@ -356,8 +362,6 @@ export default function MapComponent({
                                         </button>
                                     </div>
                                 )}
-
-
                             </div>
                         </div>
                     </InfoWindow>

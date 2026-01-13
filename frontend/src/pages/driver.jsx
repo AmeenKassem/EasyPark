@@ -618,6 +618,7 @@ export default function DriverPage() {
                 <div style={{ position: 'fixed', inset: 0, zIndex: 999999, pointerEvents: 'auto' }}>
                     <button type="button" onClick={() => setProfileOpen(false)} style={{ position: 'absolute', inset: 0, background: 'transparent', border: 0, padding: 0, margin: 0 }} />
                     <div
+                        className= "profile-menu"
                         style={{
                             position: 'absolute',
                             top: profileMenuPos.top,
