@@ -41,7 +41,7 @@ export default function StatsPage() {
     const isOwner = userRole === 'OWNER';
     const title = isOwner ? 'Statistics' : 'Driver Report';
     const moneyLabel = isOwner ? 'Total Revenue' : 'Total Expenses';
-    const moneyColor = isOwner ? '#166534' : '#991b1b'; // ירוק להכנסות, אדום להוצאות
+    const moneyColor = isOwner ? '#166534' : '#991b1b';
     const moneyBg = isOwner ? '#dcfce7' : '#fee2e2';
 
     const totalMoney = isOwner ? stats.totalRevenue : stats.totalExpenses;
