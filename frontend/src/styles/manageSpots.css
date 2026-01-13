@@ -13,7 +13,7 @@
 }
 
 .ep-ms-back {
-    display: inline-flex;
+    display: none;
     align-items: center;
     gap: 8px;
     color: #1e293b;
@@ -271,3 +271,37 @@ html, body {
     height: auto;
     overflow: auto;
 }
+.ep-ms-h1 {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+}
+@media (max-width: 770px) {
+.ep-ms-primaryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.22);
+}
+.ep-ms-subtitle {
+    margin: 2px 0 0;
+    color: #64748b;
+    font-weight: 600;
+}
+.ep-ms-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 19px;
+}
+}
+
+
