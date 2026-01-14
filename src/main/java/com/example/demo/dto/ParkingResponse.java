@@ -1,8 +1,13 @@
 package com.example.demo.dto;
 
+import com.example.demo.model.AvailabilityType;
 import com.example.demo.model.Parking;
+import com.example.demo.model.ParkingAvailability;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ParkingResponse {
 
@@ -13,9 +18,10 @@ public class ParkingResponse {
     private Double lng;
     private double pricePerHour;
     private boolean covered;
-    private LocalDateTime availableFrom;
-    private LocalDateTime availableTo;
     private boolean active;
+    private String availabilityType; // "SPECIFIC" or "RECURRING"
+    private List<SpecificSlotResponse> specificAvailability;
+    private List<RecurringScheduleResponse> recurringSchedule;
 
     public static ParkingResponse from(Parking p) {
         ParkingResponse r = new ParkingResponse();
@@ -26,12 +32,64 @@ public class ParkingResponse {
         r.lng = p.getLng();
         r.pricePerHour = p.getPricePerHour();
         r.covered = p.isCovered();
-        r.availableFrom = p.getAvailableFrom();
-        r.availableTo = p.getAvailableTo();
         r.active = p.isActive();
+
+        // Map Availability
+        if (p.getAvailabilityType() != null) {
+            r.availabilityType = p.getAvailabilityType().name();
+
+            if (p.getAvailabilityType() == AvailabilityType.SPECIFIC) {
+                r.specificAvailability = new ArrayList<>();
+                if (p.getAvailabilityList() != null) {
+                    for (ParkingAvailability pa : p.getAvailabilityList()) {
+                        r.specificAvailability.add(new SpecificSlotResponse(pa.getStartDateTime(), pa.getEndDateTime()));
+                    }
+                }
+            } else if (p.getAvailabilityType() == AvailabilityType.RECURRING) {
+                r.recurringSchedule = new ArrayList<>();
+                if (p.getAvailabilityList() != null) {
+                    for (ParkingAvailability pa : p.getAvailabilityList()) {
+                        r.recurringSchedule.add(new RecurringScheduleResponse(pa.getDayOfWeek(), pa.getStartTime(), pa.getEndTime()));
+                    }
+                }
+            }
+        }
+
         return r;
     }
 
+    // --- Inner DTOs for Response ---
+
+    public static class SpecificSlotResponse {
+        private LocalDateTime start;
+        private LocalDateTime end;
+
+        public SpecificSlotResponse(LocalDateTime start, LocalDateTime end) {
+            this.start = start;
+            this.end = end;
+        }
+
+        public LocalDateTime getStart() { return start; }
+        public LocalDateTime getEnd() { return end; }
+    }
+
+    public static class RecurringScheduleResponse {
+        private Integer dayOfWeek;
+        private LocalTime start;
+        private LocalTime end;
+
+        public RecurringScheduleResponse(Integer dayOfWeek, LocalTime start, LocalTime end) {
+            this.dayOfWeek = dayOfWeek;
+            this.start = start;
+            this.end = end;
+        }
+
+        public Integer getDayOfWeek() { return dayOfWeek; }
+        public LocalTime getStart() { return start; }
+        public LocalTime getEnd() { return end; }
+    }
+
+    // --- Getters for Main Class ---
     public Long getId() { return id; }
     public Long getOwnerId() { return ownerId; }
     public String getLocation() { return location; }
@@ -39,7 +97,8 @@ public class ParkingResponse {
     public Double getLng() { return lng; }
     public double getPricePerHour() { return pricePerHour; }
     public boolean isCovered() { return covered; }
-    public LocalDateTime getAvailableFrom() { return availableFrom; }
-    public LocalDateTime getAvailableTo() { return availableTo; }
     public boolean isActive() { return active; }
+    public String getAvailabilityType() { return availabilityType; }
+    public List<SpecificSlotResponse> getSpecificAvailability() { return specificAvailability; }
+    public List<RecurringScheduleResponse> getRecurringSchedule() { return recurringSchedule; }
 }
