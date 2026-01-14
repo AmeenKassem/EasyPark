@@ -4,7 +4,7 @@ import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 
 function normalizeLocalDateTime(v) {
     if (!v) return null;
-    return v.length === 16 ? `${v}:00` : v; // "YYYY-MM-DDTHH:mm" -> add ":00"
+    return v.length === 16 ? `${v}:00` : v;
 }
 
 const CreateParkingPage = ({ onClose, onCreated }) => {
@@ -22,7 +22,7 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // --- UPDATED HANDLER: Validates Street Number ---
+
   const handleAddressSelect = ({ lat, lng, address, address_components }) => {
     setMessage('');
 
@@ -166,32 +166,157 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
              </div>
         )}
 
+        {/* Price Stepper Section */}
         <div style={groupStyle}>
-          <label style={labelStyle}>Price per Hour (₪)</label>
-          <input
-            type="number"
-            name="pricePerHour"
-            value={formData.pricePerHour}
-            onChange={handleChange}
-            required
-            min="0"
-            step="0.5"
-            placeholder="e.g. 15.0"
-            style={inputStyle}
-          />
+          <style>
+            {`
+              input[type=number]::-webkit-inner-spin-button,
+              input[type=number]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+              }
+              input[type=number] {
+                -moz-appearance: textfield;
+              }
+            `}
+          </style>
+
+          <label style={labelStyle}>Price per Hour</label>
+          <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#f3f4f6',
+              borderRadius: '16px',
+              padding: '4px',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)',
+              width: '240px'
+          }}>
+            <button
+                type="button"
+                onClick={() => {
+                    const newVal = parseFloat(formData.pricePerHour || 0) - 0.5;
+                    if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } });
+                }}
+                style={{
+                    width: '48px',
+                    height: '44px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    fontSize: '24px',
+                    color: '#6b7280',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+                −
+            </button>
+
+            <div style={{
+                flex: 1,
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                height: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                margin: '0 4px',
+                position: 'relative'
+            }}>
+                <span style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#374151',
+                    marginRight: '4px'
+                }}>₪</span>
+                <input
+                    type="number"
+                    name="pricePerHour"
+                    value={formData.pricePerHour}
+                    onChange={handleChange}
+                    required
+                    min="0"
+                    step="0.5"
+                    placeholder="0.0"
+                    style={{
+                        width: '60px',
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: '20px',
+                        fontWeight: '600',
+                        color: '#1f2937',
+                        textAlign: 'left',
+                        backgroundColor: 'transparent',
+                        padding: 0
+                    }}
+                />
+            </div>
+
+            <button
+                type="button"
+                onClick={() => {
+                    const newVal = (parseFloat(formData.pricePerHour) || 0) + 0.5;
+                    handleChange({ target: { name: 'pricePerHour', value: newVal } });
+                }}
+                style={{
+                    width: '48px',
+                    height: '44px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    fontSize: '24px',
+                    color: '#6b7280',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+                +
+            </button>
+          </div>
         </div>
 
-        <div style={{ ...groupStyle, flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
-          <input
-            type="checkbox"
-            name="covered"
-            checked={formData.covered}
-            onChange={handleChange}
-            style={{ width: '20px', height: '20px' }}
-          />
-          <label>Is the parking covered?</label>
+        <div style={{ ...groupStyle, flexDirection: 'row', alignItems: 'center', gap: '12px' }}>
+            <label style={{ fontWeight: '500', margin: 0 }}>Is the parking covered?</label>
+            <div
+                onClick={() => setFormData(prev => ({ ...prev, covered: !prev.covered }))}
+                style={{
+                    width: '50px',
+                    height: '26px',
+                    backgroundColor: formData.covered ? '#3b82f6' : '#e5e7eb',
+                    borderRadius: '50px',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.3s ease',
+                    border: '1px solid #d1d5db',
+                    flexShrink: 0
+                }}
+            >
+                <div style={{
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: formData.covered ? '26px' : '2px',
+                    transition: 'left 0.3s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }} />
+            </div>
         </div>
 
+        {/* Date Fields (Required) */}
         <div style={{ display: 'flex', gap: '15px' }}>
             <div style={{ ...groupStyle, flex: 1 }}>
             <label style={labelStyle}>Available From</label>
@@ -201,6 +326,7 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
                 value={formData.availableFrom}
                 onChange={handleChange}
                 style={inputStyle}
+                required
             />
             </div>
 
@@ -212,49 +338,64 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
                 value={formData.availableTo}
                 onChange={handleChange}
                 style={inputStyle}
+                required
             />
             </div>
         </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button
-                  type="button"
-                  onClick={() => onClose?.()}
-                  disabled={loading}
-                  style={{
-                      flex: 1,
-                      padding: '14px',
-                      backgroundColor: '#f3f4f6',
-                      color: '#111827',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                  }}
-              >
-                  Cancel
-              </button>
 
-              <button
-                  type="submit"
-                  disabled={loading || !formData.lat}
-                  style={{
-                      flex: 1,
-                      padding: '14px',
-                      backgroundColor: (loading || !formData.lat) ? '#9ca3af' : '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      cursor: (loading || !formData.lat) ? 'not-allowed' : 'pointer',
-                      opacity: (loading || !formData.lat) ? 0.7 : 1,
-                  }}
-              >
-                  {loading ? 'Processing...' : 'Create Parking Spot'}
-              </button>
+              {/* Validation Logic for the Button */}
+              {(() => {
+                  const isFormValid =
+                      formData.lat &&
+                      formData.pricePerHour &&
+                      formData.availableFrom &&
+                      formData.availableTo;
+
+                  return (
+                      <>
+                          <button
+                              type="button"
+                              onClick={() => onClose?.()}
+                              disabled={loading}
+                              style={{
+                                  flex: 1,
+                                  padding: '14px',
+                                  backgroundColor: '#f3f4f6',
+                                  color: '#111827',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '8px',
+                                  fontSize: '16px',
+                                  fontWeight: 'bold',
+                                  cursor: loading ? 'not-allowed' : 'pointer',
+                                  opacity: loading ? 0.7 : 1,
+                              }}
+                          >
+                              Cancel
+                          </button>
+
+                          <button
+                              type="submit"
+                              disabled={loading || !isFormValid}
+                              style={{
+                                  flex: 1,
+                                  padding: '14px',
+                                  backgroundColor: (loading || !isFormValid) ? '#9ca3af' : '#007bff',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '8px',
+                                  fontSize: '16px',
+                                  fontWeight: 'bold',
+                                  cursor: (loading || !isFormValid) ? 'not-allowed' : 'pointer',
+                                  opacity: (loading || !isFormValid) ? 0.7 : 1,
+                              }}
+                          >
+                              {loading ? 'Processing...' : 'Create Parking Spot'}
+                          </button>
+                      </>
+                  );
+              })()}
           </div>
 
         {message && !message.includes('precise address') && (
