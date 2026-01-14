@@ -3,8 +3,13 @@ package com.example.demo.controller;
 import com.example.demo.dto.BookingResponse;
 import com.example.demo.dto.CreateBookingRequest;
 import com.example.demo.dto.UpdateBookingStatusRequest;
+import com.example.demo.dto.UserSummary;
 import com.example.demo.model.Booking;
+import com.example.demo.model.BookingStatus;
 import com.example.demo.service.BookingService;
+import com.example.demo.service.EmailService;
+import com.example.demo.service.UserService;
+
 import jakarta.validation.Valid;
 
 import org.slf4j.Logger;
@@ -24,9 +29,13 @@ public class BookingController {
     private static final Logger log = LoggerFactory.getLogger(BookingController.class);
 
     private final BookingService bookingService;
+    private final EmailService emailService;
+    private final UserService userService;
 
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService, EmailService emailService, UserService userService) {
         this.bookingService = bookingService;
+        this.emailService = emailService;
+        this.userService = userService;
     }
 
     private Long currentUserId(Authentication auth) {
@@ -88,6 +97,11 @@ public class BookingController {
                 ownerId, id, req.getStatus());
 
         Booking b = bookingService.updateStatus(ownerId, id, req);
+
+        if (b != null && b.getStatus().equals(BookingStatus.APPROVED)) {
+            UserSummary ownerSummary = userService.getUserSummary(ownerId);
+            emailService.sendBookingApprovedNotification(b.getDriver().getEmail(), b, ownerSummary);
+        }
 
         log.info("action=booking_status_update success ownerId={} bookingId={} status={}",
                 ownerId, b.getId(), b.getStatus());
