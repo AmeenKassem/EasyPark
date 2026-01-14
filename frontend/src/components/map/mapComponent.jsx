@@ -5,7 +5,6 @@ import axios from 'axios'
 const containerStyle = { width: '100%', height: '100%' }
 const defaultCenter = { lat: 32.0853, lng: 34.7818 }
 
-// Style for the geolocation button
 const locateBtnStyle = {
     position: 'absolute',
     bottom: '70px',
@@ -33,8 +32,6 @@ const btnStyleWaze = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
-    height: 33,
-    marginTop: 23,
 }
 
 const btnStyleGoogle = {
@@ -46,20 +43,18 @@ const btnStyleGoogle = {
     cursor: 'pointer',
     flex: 1,
     fontWeight: 800,
-    height: 33,
-    marginTop: 23,
 }
+
 const btnStyleRequest = {
     backgroundColor: '#111827',
     color: 'white',
     border: 'none',
-    padding: '10px 12px',
+    padding: '12px',
     borderRadius: '10px',
     cursor: 'pointer',
-    flex: 1,
     fontWeight: 800,
-    height: 33,
-    marginTop: 13,
+    fontSize: '15px',
+    width: '100%',
 }
 
 export default function MapComponent({
@@ -213,17 +208,11 @@ export default function MapComponent({
         setSelectedSpot(null)
     }
 
-    // --- NEW HELPER FUNCTION: Obscure Address ---
-    // This removes numbers from the address string to protect privacy
     const getObscuredAddress = (fullAddress) => {
         if (!fullAddress) return 'Parking spot';
-        // Clean up double spaces or floating commas left behind
-        // e.g. "Herzl , Tel Aviv" -> "Herzl, Tel Aviv"
         let safeAddr = fullAddress.replace(/\s+,/g, ',').replace(/\s\s+/g, ' ').trim();
-
         return `Parking at ${safeAddr}`;
     };
-    // --------------------------------------------
 
     if (loadError) {
         return <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
@@ -305,9 +294,8 @@ export default function MapComponent({
                         position={{ lat: Number(selectedSpot.lat), lng: Number(selectedSpot.lng) }}
                         onCloseClick={() => setSelectedSpot(null)}
                     >
-                        <div style={{ minWidth: 240 }}>
+                        <div style={{ minWidth: 250 }}>
                             <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
-                                {/* Updated: Using the helper function to hide numbers */}
                                 {getObscuredAddress(selectedSpot.location)}
                             </h3>
 
@@ -338,31 +326,34 @@ export default function MapComponent({
                                 >
                                     Maps
                                 </button>
-                                {onSpotClick && (
-                                    <div style={{ marginTop: 12 }}>
-                                        {isMine && (
-                                            <div style={{ marginBottom: 10, color: '#111827', fontWeight: 700 }}>
-                                                This parking spot is yours
-                                            </div>
-                                        )}
+                            </div>
 
+                            {onSpotClick && (
+                                <div style={{ marginTop: 15 }}>
+                                    {isMine ? (
+                                        <div style={{
+                                            textAlign: 'center',
+                                            padding: '10px',
+                                            backgroundColor: '#fee2e2',
+                                            color: '#b91c1c',
+                                            borderRadius: '8px',
+                                            fontWeight: '700',
+                                            border: '1px solid #fecaca',
+                                            fontSize: '14px'
+                                        }}>
+                                            This parking spot is yours
+                                        </div>
+                                    ) : (
                                         <button
                                             type="button"
-                                            disabled={isMine}
                                             onClick={() => onSpotClick(selectedSpot)}
-                                            style={{
-                                                ...btnStyleRequest,
-                                                width: '100%',
-                                                opacity: isMine ? 0.55 : 1,
-                                                cursor: isMine ? 'not-allowed' : 'pointer',
-                                            }}
-                                            title={isMine ? "You can't request a booking from yourself" : 'Request booking'}
+                                            style={btnStyleRequest}
                                         >
                                             Request booking
                                         </button>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </InfoWindow>
                 )}
