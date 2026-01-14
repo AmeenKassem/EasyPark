@@ -201,6 +201,10 @@ export default function MapComponent({
                 window.google.maps.event.trigger(mapRef.current, 'resize')
             }
         }, 120)
+
+        setTimeout(() => {
+            handleLocateUser();
+        }, 200);
     }
 
     const onUnmount = () => {
