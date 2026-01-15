@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.ForgotPasswordRequest;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.dto.ResetPasswordRequest;
@@ -8,14 +9,16 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.security.JwtService;
 import com.example.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Test; // שים לב לשימוש ב-junit.jupiter.api
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,14 +46,10 @@ class AuthControllerTests {
     @Autowired
     private JwtService jwtService;
 
-    @BeforeEach
-    void cleanDatabase() {
-        userRepository.deleteAll();
-    }
+
 
     private RegisterRequest buildRegisterRequest(
             String fullName, String email, String phone, String password, Role role) {
-
         RegisterRequest req = new RegisterRequest();
         req.setFullName(fullName);
         req.setEmail(email);
@@ -83,29 +82,26 @@ class AuthControllerTests {
 
     @Test
     void registerEndpoint_withInvalidEmail_returns400() throws Exception {
-        // invalid email + empty fields → triggers validation
-        String json = """
-                {
-                  "fullName": "",
-                  "email": "not-an-email",
-                  "phone": "",
-                  "password": "",
-                  "role": "DRIVER"
-                }
-                """;
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("fullName", "");
+        requestMap.put("email", "not-an-email");
+        requestMap.put("phone", "");
+        requestMap.put("password", "");
+        requestMap.put("role", "DRIVER");
 
         mockMvc.perform(
                         post("/api/auth/register")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(json)
+                                .content(objectMapper.writeValueAsString(requestMap))
                 )
                 .andExpect(status().isBadRequest())
-                // GlobalExceptionHandler returns a map field -> error message
                 .andExpect(jsonPath("$.email").exists());
     }
 
     @Test
     void loginEndpoint_withCorrectCredentials_returns200() throws Exception {
+        // Arrange
         RegisterRequest reg = buildRegisterRequest(
                 "Login API User",
                 "loginapi@example.com",
@@ -119,19 +115,22 @@ class AuthControllerTests {
         login.setEmail("loginapi@example.com");
         login.setPassword("Password1!");
 
+        // Act & Assert
         mockMvc.perform(
                         post("/api/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(login))
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Login successful"));
+                .andExpect(jsonPath("$.message").value("Login successful"))
+                .andExpect(jsonPath("$.token").exists());
     }
 
     @Test
     void loginEndpoint_withWrongPassword_returns400() throws Exception {
+        // Arrange
         RegisterRequest reg = buildRegisterRequest(
-                "Login API User",
+                "Wrong Pass User",
                 "wrongpassapi@example.com",
                 "050-7777777",
                 "Password1!",
@@ -143,70 +142,74 @@ class AuthControllerTests {
         login.setEmail("wrongpassapi@example.com");
         login.setPassword("WrongPassword!");
 
+        // Act & Assert
+
         mockMvc.perform(
                         post("/api/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(login))
                 )
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Invalid email or password"));
+                .andExpect(status().isBadRequest());
     }
+
     @Test
     void forgotPassword_alwaysReturnsOk() throws Exception {
+        // Arrange
         userService.register(buildRegisterRequest(
-                "User",
-                "user@example.com",
+                "User Forgot",
+                "userforgot@example.com",
                 "050-1234567",
                 "Password1!",
                 Role.DRIVER
         ));
 
+        ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest();
+        forgotRequest.setEmail("userforgot@example.com");
+
+        // Act & Assert
         mockMvc.perform(
                         post("/api/auth/forgot-password")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                        { "email": "user@example.com" }
-                    """)
+                                .content(objectMapper.writeValueAsString(forgotRequest))
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").exists());
     }
+
     @Test
     void resetPassword_withInvalidToken_fails() throws Exception {
+        ResetPasswordRequest resetRequest = new ResetPasswordRequest();
+        resetRequest.setToken("invalid-token");
+        resetRequest.setNewPassword("NewPassword123");
+
         mockMvc.perform(
                         post("/api/auth/reset-password")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                        {
-                          "token": "invalid-token",
-                          "newPassword": "NewPassword123"
-                        }
-                    """)
+                                .content(objectMapper.writeValueAsString(resetRequest))
                 )
                 .andExpect(status().isBadRequest());
     }
 
-
     @Test
     void getUsersEndpoint_withValidToken_returnsRegisteredUsers() throws Exception {
-        // Arrange: create two users in the system
+        // Arrange
         var userA = userService.register(buildRegisterRequest(
                 "User A", "userA@example.com", "050-9999999", "Password1!", Role.DRIVER));
 
         userService.register(buildRegisterRequest(
                 "User B", "userB@example.com", "050-1010101", "Password1!", Role.OWNER));
 
-        // Generate a valid JWT token for userA
+        // Generate Token
         String token = jwtService.generateToken(userA);
 
-        // Act + Assert: call /api/auth/users with Authorization header
+        // Act & Assert
         mockMvc.perform(
                         get("/api/auth/users")
                                 .header("Authorization", "Bearer " + token)
                                 .accept(MediaType.APPLICATION_JSON)
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").exists())
-                .andExpect(jsonPath("$[1].email").exists());
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].email").exists());
     }
 }

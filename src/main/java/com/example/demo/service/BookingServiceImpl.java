@@ -87,55 +87,61 @@ public class BookingServiceImpl implements BookingService {
 
     // --- Helper Method to Validate Availability ---
     private void validateParkingAvailability(Parking parking, LocalDateTime start, LocalDateTime end) {
-        // If no availability is defined, assume available (or restrict - depends on logic. Here assumes closed if empty)
         if (parking.getAvailabilityList() == null || parking.getAvailabilityList().isEmpty()) {
-            // Option A: If list empty, assume available anytime?
-            // Option B: If list empty, assume closed?
-            // Let's assume Option B for safety in a structured app:
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking has no availability defined");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking availability configuration is missing.");
         }
 
         boolean isWithinSlot = false;
+        String reason = "Time outside available slots.";
 
         if (parking.getAvailabilityType() == AvailabilityType.SPECIFIC) {
-            // Check if request falls entirely within ONE of the specific slots
             for (ParkingAvailability slot : parking.getAvailabilityList()) {
                 if (slot.getStartDateTime() != null && slot.getEndDateTime() != null) {
-                    // Check inclusion: SlotStart <= ReqStart AND ReqEnd <= SlotEnd
                     if (!start.isBefore(slot.getStartDateTime()) && !end.isAfter(slot.getEndDateTime())) {
                         isWithinSlot = true;
                         break;
                     }
                 }
             }
+            if (!isWithinSlot) {
+                reason = "Selected date is outside the specific availability range.";
+            }
+
         } else if (parking.getAvailabilityType() == AvailabilityType.RECURRING) {
             // Convert Java DayOfWeek (1=Mon..7=Sun) to DB logic (0=Sun..6=Sat)
             int javaDay = start.getDayOfWeek().getValue();
-            int dbDay = (javaDay == 7) ? 0 : javaDay;
+            int dbDay = (javaDay == 7) ? 0 : javaDay; // Adjust if your DB uses 1=Sun
 
-            // Check if start and end are on the same day (simplification for recurring)
+            // Check if start and end are on the same day
             if (!start.toLocalDate().isEqual(end.toLocalDate())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recurring bookings cannot span across midnight (multi-day)");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking cannot span multiple days for recurring parking.");
             }
 
             LocalTime reqStart = start.toLocalTime();
             LocalTime reqEnd = end.toLocalTime();
+            boolean dayFound = false;
 
             for (ParkingAvailability slot : parking.getAvailabilityList()) {
                 if (slot.getDayOfWeek() != null && slot.getDayOfWeek() == dbDay) {
+                    dayFound = true;
                     if (slot.getStartTime() != null && slot.getEndTime() != null) {
-                        // Check time inclusion
                         if (!reqStart.isBefore(slot.getStartTime()) && !reqEnd.isAfter(slot.getEndTime())) {
                             isWithinSlot = true;
                             break;
+                        } else {
+                            reason = String.format("On %s, parking is only available between %s and %s.",
+                                    start.getDayOfWeek(), slot.getStartTime(), slot.getEndTime());
                         }
                     }
                 }
             }
+            if (!dayFound) {
+                reason = "Parking is closed on " + start.getDayOfWeek() + ".";
+            }
         }
 
         if (!isWithinSlot) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is outside the parking availability window");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
         }
     }
 
@@ -207,7 +213,8 @@ public class BookingServiceImpl implements BookingService {
     private double calculateTotalPrice(Parking parking, LocalDateTime start, LocalDateTime end) {
         double pricePerHour = parking.getPricePerHour();
         long minutes = Duration.between(start, end).toMinutes();
-        long hoursRoundedUp = (minutes + 59) / 60;
-        return hoursRoundedUp * pricePerHour;
+        double hoursExact = minutes / 60.0; // Must use 60.0 to force double division
+        double calculatedPrice = hoursExact * pricePerHour;
+        return Math.round(calculatedPrice * 100.0) / 100.0;
     }
 }
