@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+
 
 // --- HELPER: Generate Time Slots ---
 const generateTimeOptions = (stepMinutes = 30) => {
@@ -13,6 +16,13 @@ const generateTimeOptions = (stepMinutes = 30) => {
     }
     times.push('23:59'); // Add End-of-Day
     return times;
+};
+const toYMD = (d) => {
+    if (!d) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 };
 
 const CreateParkingPage = ({ onClose, onCreated }) => {
@@ -269,7 +279,43 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
 
   return (
       <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-      <style>{`input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button {-webkit-appearance: none; margin: 0;} input[type=number] {-moz-appearance: textfield;}`}</style>
+          <style>{`
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* Match booking calendar look */
+  .ep-date-wrap { width: 100%; }
+  .ep-date-picker {
+    width: 100%;
+    height: 38px;               /* matches your current compact slot row */
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    outline: none;
+    color: #1e293b;
+    font-family: inherit;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .ep-date-picker:focus {
+    border-color: #94a3b8;
+  }
+
+  /* Optional: make the popup look cleaner */
+  .react-datepicker {
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+  .react-datepicker__header {
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+  }
+`}</style>
+
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
           <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>Add New Spot</h2>
@@ -325,7 +371,16 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
                      <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                          <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
                              <span style={{...subLabelStyle, color: '#166534'}}>FROM (Start)</span>
-                             <input type="date" min={new Date().toISOString().split('T')[0]} value={slot.startDate} onChange={(e) => updateSpecificSlot(slot.id, 'startDate', e.target.value)} style={{...inputStyle, height: '38px', fontSize: '13px'}} />
+                             <DatePicker
+                                 selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
+                                 onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
+                                 minDate={new Date()}
+                                 dateFormat="MM/dd/yyyy"
+                                 placeholderText="Select date"
+                                 className="ep-date-picker"
+                                 wrapperClassName="ep-date-wrap"
+                             />
+
                              <select value={slot.startTime} onChange={(e) => updateSpecificSlot(slot.id, 'startTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
                                 <option value="" disabled>--:--</option>
                                 {getValidStartTimes(slot.startDate).map(t => <option key={t} value={t}>{t}</option>)}
@@ -334,7 +389,16 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
                          <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
                          <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
                              <span style={{...subLabelStyle, color: '#991b1b'}}>TO (End)</span>
-                             <input type="date" min={slot.startDate || new Date().toISOString().split('T')[0]} value={slot.endDate} onChange={(e) => updateSpecificSlot(slot.id, 'endDate', e.target.value)} style={{...inputStyle, height: '38px', fontSize: '13px'}} />
+                             <DatePicker
+                                 selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
+                                 onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
+                                 minDate={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : new Date()}
+                                 dateFormat="MM/dd/yyyy"
+                                 placeholderText="Select date"
+                                 className="ep-date-picker"
+                                 wrapperClassName="ep-date-wrap"
+                             />
+
                              <select value={displayEndTime} onChange={(e) => updateSpecificSlot(slot.id, 'endTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
                                 <option value="" disabled>--:--</option>
                                 {validEndTimes.map(t => <option key={t} value={t}>{t}</option>)}
