@@ -45,6 +45,17 @@ const timeToMins = (t) => {
     return h * 60 + m;
 };
 const toYMD = (d) => (d ? d.toISOString().split('T')[0] : '');
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+// Find first date >= baseDate that passes isSelectableDate, within N days
+const findFirstSelectableDate = (baseDate, isSelectableDateFn, maxDays = 366) => {
+    const d = startOfDay(baseDate);
+    for (let i = 0; i < maxDays; i++) {
+        if (isSelectableDateFn(d)) return new Date(d);
+        d.setDate(d.getDate() + 1);
+    }
+    return null; // nothing found
+};
 
 export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     if (!isOpen || !spot) return null;
@@ -192,43 +203,53 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
 
     // --- SMART DEFAULTS ---
     useEffect(() => {
-        if (isOpen) {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const defaultDateStr = (spot.availableFrom && spot.availableFrom > todayStr)
-                ? toInputDate(spot.availableFrom)
-                : todayStr;
+        if (!isOpen) return;
 
-// Convert to Date object for DatePicker
-            const defaultDateObj = new Date(`${defaultDateStr}T00:00:00`);
-            setStartDate(defaultDateObj);
-            setEndDate(defaultDateObj);
-            const limits = getDailyLimits(defaultDateStr); // for start day defaults
+        // Base date: today OR spot.availableFrom (if it is in the future)
+        const today = startOfDay(new Date());
 
-
-            let smartStart = getRoundedCurrentTime();
-
-            if (limits) {
-
-                if (timeToMins(smartStart) < timeToMins(limits.start)) {
-                    smartStart = limits.start;
-                }
-
-                if (timeToMins(smartStart) >= timeToMins(limits.end)) {
-                    smartStart = limits.start;
-                }
-
-                setStartTime(smartStart);
-                setEndTime(addMinutesToTime(smartStart, 120)); // +2 hours
-            } else {
-
-                setStartTime("09:00");
-                setEndTime("11:00");
-            }
-
-            setFeedback({ message: '', isError: false });
+        let base = today;
+        if (spot?.availableFrom) {
+            const af = startOfDay(new Date(spot.availableFrom));
+            if (af > base) base = af;
         }
 
-    }, [isOpen, spot]);
+        // Find first date that is actually selectable by your calendar rules
+        const first = findFirstSelectableDate(base, isSelectableDate, 366);
+
+        // If none found, keep dates null (or keep today but you'll be "closed" anyway)
+        if (!first) {
+            setStartDate(null);
+            setEndDate(null);
+            setStartTime('');
+            setEndTime('');
+            setFeedback({ message: 'No available dates for this spot.', isError: true });
+            return;
+        }
+
+        setStartDate(first);
+        setEndDate(first);
+
+        const ymd = toYMD(first);
+        const limits = getDailyLimits(ymd);
+
+        let smartStart = getRoundedCurrentTime();
+
+        if (limits) {
+            if (timeToMins(smartStart) < timeToMins(limits.start)) smartStart = limits.start;
+            if (timeToMins(smartStart) >= timeToMins(limits.end)) smartStart = limits.start;
+            setStartTime(smartStart);
+            setEndTime(addMinutesToTime(smartStart, 120));
+        } else {
+            // If the day is selectable but limits can't be computed (should be rare),
+            // pick something sane
+            setStartTime("09:00");
+            setEndTime("11:00");
+        }
+
+        setFeedback({ message: '', isError: false });
+    }, [isOpen, spot, normalizedAvailabilityList]);
+
 
     // --- FETCH BUSY ---
     useEffect(() => {
