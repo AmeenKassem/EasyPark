@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createBooking } from '../../services/booking';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+
 
 // --- HELPER: Generate Time Slots ---
 const generateTimeOptions = () => {
@@ -41,14 +44,17 @@ const timeToMins = (t) => {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
 };
+const toYMD = (d) => (d ? d.toISOString().split('T')[0] : '');
 
 export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     if (!isOpen || !spot) return null;
 
     // --- STATE ---
-    const [selectedDate, setSelectedDate] = useState('');
+    const [startDate, setStartDate] = useState(null); // Date object
+    const [endDate, setEndDate] = useState(null);     // Date object
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
+
 
     const [totalPrice, setTotalPrice] = useState(0);
     const [saving, setSaving] = useState(false);
@@ -59,25 +65,88 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
 
     const timeOptions = useMemo(() => generateTimeOptions(), []);
 
+    const normalizedAvailabilityList = useMemo(() => {
+        if (!spot) return [];
+
+        const type = String(spot.availabilityType || '').toUpperCase();
+
+        // Backend sends recurringSchedule: [{ dayOfWeek, start, end }]
+        if (type === 'RECURRING' && Array.isArray(spot.recurringSchedule)) {
+            return spot.recurringSchedule.map(r => ({
+                dayOfWeek: r.dayOfWeek,
+                startTime: r.start, // backend uses "start"
+                endTime: r.end,     // backend uses "end"
+            }));
+        }
+
+        // Backend sends specificAvailability: [{ start, end }]
+        if (type === 'SPECIFIC' && Array.isArray(spot.specificAvailability)) {
+            return spot.specificAvailability.map(r => ({
+                startDateTime: r.start, // backend uses "start"
+                endDateTime: r.end,     // backend uses "end"
+            }));
+        }
+
+        return [];
+    }, [spot]);
+    const isSelectableDate = (date) => {
+        console.log("check", date.toDateString(), "jsDay", date.getDay(), "rules", normalizedAvailabilityList.map(x=>x.dayOfWeek));
+
+        if (!date || !spot) return false;
+
+        const type = String(spot.availabilityType || '').trim().toUpperCase();
+
+        // No availability config => not selectable (strict blocking)
+        if (!normalizedAvailabilityList || normalizedAvailabilityList.length === 0) return false;
+
+        if (type === 'RECURRING') {
+            const jsDay = date.getDay(); // 0=Sun..6=Sat
+
+            // Support multiple backend conventions
+            const alt1 = jsDay === 0 ? 7 : jsDay;       // 1..7 (Mon..Sun)
+            const alt2 = jsDay === 0 ? 1 : jsDay + 1;   // 1..7 (Sun..Sat)
+
+            return normalizedAvailabilityList.some(r => {
+                const d = r.dayOfWeek;
+                return d === jsDay || d === alt1 || d === alt2;
+            });
+        }
+
+        if (type === 'SPECIFIC') {
+            const targetYMD = toYMD(date); // YYYY-MM-DD
+
+            return normalizedAvailabilityList.some(r => {
+                const sYMD = String(r.startDateTime || '').split('T')[0];
+                const eYMD = String(r.endDateTime || '').split('T')[0];
+                return targetYMD >= sYMD && targetYMD <= eYMD;
+            });
+        }
+
+        return false;
+    };
 
     const getDailyLimits = (dateStr) => {
+        const type = String(spot.availabilityType || '').trim().toUpperCase();
         if (!dateStr || !spot) return null;
 
+        console.log("DEBUG spot keys:", Object.keys(spot || {}));
+        console.log("DEBUG availabilityType:", spot?.availabilityType);
+        console.log("DEBUG normalizedAvailabilityList:", normalizedAvailabilityList);
 
-        if (!spot.availabilityList || spot.availabilityList.length === 0) {
+        if (!normalizedAvailabilityList || normalizedAvailabilityList.length === 0) {
             // Fallback to simple fields if list is missing but old fields exist
             if (spot.startTime && spot.endTime) {
                 return { start: spot.startTime.substring(0,5), end: spot.endTime.substring(0,5) };
             }
-            return { start: "00:00", end: "23:59" };
+            return null;
         }
 
         const dateObj = new Date(dateStr);
         const dayOfWeek = dateObj.getDay(); // 0=Sun, 1=Mon...
 
-        if (spot.availabilityType === 'RECURRING') {
+        if (type === 'RECURRING') {
 
-            const rule = spot.availabilityList.find(r => r.dayOfWeek === dayOfWeek);
+            const rule = normalizedAvailabilityList.find(r => r.dayOfWeek === dayOfWeek);
             if (rule && rule.startTime && rule.endTime) {
                 return {
                     start: rule.startTime.substring(0, 5),
@@ -87,11 +156,11 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
             return null;
         }
 
-        else if (spot.availabilityType === 'SPECIFIC') {
+        else if (type === 'SPECIFIC') {
 
             const targetDate = new Date(dateStr);
 
-            const rule = spot.availabilityList.find(r => {
+            const rule = normalizedAvailabilityList.find(r => {
                 const start = new Date(r.startDateTime);
                 const end = new Date(r.endDateTime);
                 return targetDate >= new Date(start.toDateString()) && targetDate <= new Date(end.toDateString());
@@ -124,15 +193,18 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     // --- SMART DEFAULTS ---
     useEffect(() => {
         if (isOpen) {
-            const today = new Date().toISOString().split('T')[0];
-            const defaultDate = (spot.availableFrom && spot.availableFrom > today)
+            const todayStr = new Date().toISOString().split('T')[0];
+            const defaultDateStr = (spot.availableFrom && spot.availableFrom > todayStr)
                 ? toInputDate(spot.availableFrom)
-                : today;
+                : todayStr;
 
-            setSelectedDate(defaultDate);
+// Convert to Date object for DatePicker
+            const defaultDateObj = new Date(`${defaultDateStr}T00:00:00`);
+            setStartDate(defaultDateObj);
+            setEndDate(defaultDateObj);
+            const limits = getDailyLimits(defaultDateStr); // for start day defaults
 
 
-            const limits = getDailyLimits(defaultDate);
             let smartStart = getRoundedCurrentTime();
 
             if (limits) {
@@ -160,14 +232,17 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
 
     // --- FETCH BUSY ---
     useEffect(() => {
-        if (!isOpen || !spot?.id || !selectedDate) return;
+        if (!isOpen || !spot?.id || !startDate || !endDate) return;
+        const fromYMD = toYMD(startDate);
+        const toYMD_ = toYMD(endDate);
 
         let cancelled = false;
         const fetchBusy = async () => {
             setBusyLoading(true);
             try {
-                const startOfDay = `${selectedDate}T00:00:00`;
-                const endOfDay = `${selectedDate}T23:59:59`;
+                const startOfDay = `${fromYMD}T00:00:00`;
+                const endOfDay = `${toYMD_}T23:59:59`;
+
                 const params = new URLSearchParams({ from: startOfDay, to: endOfDay });
                 const token = localStorage.getItem('easypark_token');
 
@@ -187,13 +262,14 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         };
         fetchBusy();
         return () => { cancelled = true; };
-    }, [isOpen, spot, selectedDate]);
+    }, [isOpen, spot, startDate,endDate]);
 
     // --- PRICE ---
     useEffect(() => {
-        if (selectedDate && startTime && endTime) {
-            const start = new Date(`${selectedDate}T${startTime}`);
-            const end = new Date(`${selectedDate}T${endTime}`);
+        if (startDate && endDate && startTime && endTime) {
+            const start = new Date(`${toYMD(startDate)}T${startTime}`);
+            const end = new Date(`${toYMD(endDate)}T${endTime}`);
+
             if (end > start) {
                 const diffMs = end - start;
                 const diffHours = diffMs / (1000 * 60 * 60);
@@ -202,20 +278,22 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                 setTotalPrice(0);
             }
         }
-    }, [selectedDate, startTime, endTime, spot]);
+    }, [startDate,endDate, startTime, endTime, spot]);
 
     // --- VALIDATION HELPERS ---
 
-    const isOwnerClosed = (timeStr) => {
-        const limits = getDailyLimits(selectedDate);
+    const isOwnerClosed = (dateObj, timeStr) => {
+        const limits = getDailyLimits(toYMD(dateObj));
         if (!limits) return true;
 
         const t = timeToMins(timeStr);
         return t < timeToMins(limits.start) || t > timeToMins(limits.end);
     };
 
-    const isBookedBusy = (timeStr) => {
-        const fullDateTime = new Date(`${selectedDate}T${timeStr}`);
+
+    const isBookedBusy = (dateObj, timeStr) => {
+        const ymd = toYMD(dateObj);
+        const fullDateTime = new Date(`${ymd}T${timeStr}`);
         return busyIntervals.some(interval => {
             const busyStart = new Date(interval.startTime);
             const busyEnd = new Date(interval.endTime);
@@ -223,14 +301,15 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         });
     };
 
+
     const getValidationError = () => {
-        if (!selectedDate || !startTime || !endTime) return null;
+        if (!startDate|| !endDate || !startTime || !endTime) return null;
         if (timeToMins(endTime) <= timeToMins(startTime)) return "End time must be after start time";
 
-        if (isOwnerClosed(startTime) || isOwnerClosed(endTime)) return "Selected time is outside operating hours.";
+        if (isOwnerClosed(startDate,startTime) || isOwnerClosed(endDate,endTime)) return "Selected time is outside operating hours.";
 
-        const s = new Date(`${selectedDate}T${startTime}`);
-        const e = new Date(`${selectedDate}T${endTime}`);
+        const s = new Date(`${toYMD(startDate)}T${startTime}`);
+        const e = new Date(`${toYMD(endDate)}T${endTime}`);
         const hasOverlap = busyIntervals.some(interval => {
             const bS = new Date(interval.startTime);
             const bE = new Date(interval.endTime);
@@ -252,8 +331,8 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         try {
             const payload = {
                 parkingId: spot.id,
-                startTime: `${selectedDate}T${startTime}:00`,
-                endTime: `${selectedDate}T${endTime}:00`,
+                startTime: `${toYMD(startDate)}T${startTime}:00`,
+                endTime: `${toYMD(endDate)}T${endTime}:00`,
             };
 
             await createBooking(payload);
@@ -277,7 +356,7 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         const selectionWidth = ((endMins - startMins) / 1440) * 100;
 
         // Visualizing Closed Areas based on Daily Limits
-        const limits = getDailyLimits(selectedDate) || { start: "00:00", end: "00:00" }; // If null, treat as fully closed
+        const limits = getDailyLimits(toYMD(startDate)) || { start: "00:00", end: "00:00" }; // If null, treat as fully closed
         const limitStartMins = timeToMins(limits.start);
         const limitEndMins = timeToMins(limits.end);
 
@@ -302,7 +381,7 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                     {busyIntervals.map((interval, idx) => {
                         const bS = new Date(interval.startTime);
                         const bE = new Date(interval.endTime);
-                        const startOfDay = new Date(`${selectedDate}T00:00:00`);
+                        const startOfDay = new Date(`${toYMD(startDate)}T00:00:00`);
                         let startPct = ((bS - startOfDay) / 1000 / 60 / 1440) * 100;
                         let widthPct = ((bE - bS) / 1000 / 60 / 1440) * 100;
                         if (startPct < 0) { widthPct += startPct; startPct = 0; }
@@ -337,8 +416,35 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                 </div>
 
                 <div style={{ marginBottom: '15px' }}>
-                    <label style={labelStyle}>Date</label>
-                    <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={new Date().toISOString().split('T')[0]} style={inputStyle} />
+                    <label style={labelStyle}>Start Date</label>
+                    <DatePicker
+                        selected={startDate}
+                        onChange={(d) => {
+                            setStartDate(d);
+                            // keep endDate >= startDate
+                            if (!endDate || (d && endDate < d)) setEndDate(d);
+                        }}
+                        minDate={new Date()}
+                        filterDate={isSelectableDate}
+                        dateFormat="MM/dd/yyyy"
+                        placeholderText="Select start date"
+                        className="ep-date-picker"
+                    />
+
+                    <div style={{ height: 10 }} />
+
+                    <label style={labelStyle}>End Date</label>
+                    <DatePicker
+                        selected={endDate}
+                        onChange={(d) => setEndDate(d)}
+                        minDate={startDate || new Date()}
+                        filterDate={isSelectableDate}
+                        dateFormat="MM/dd/yyyy"
+                        placeholderText="Select end date"
+                        className="ep-date-picker"
+                    />
+
+
                 </div>
 
                 {renderTimeline()}
@@ -357,8 +463,8 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                             style={selectStyle}
                         >
                             {timeOptions.map(t => {
-                                const closed = isOwnerClosed(t);
-                                const busy = !closed && isBookedBusy(t);
+                                const closed = isOwnerClosed(startDate,t);
+                                const busy = !closed && isBookedBusy(startDate,t);
 
                                 return (
                                     <option
@@ -384,8 +490,8 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                             {timeOptions.map(t => {
                                 if (startTime && timeToMins(t) <= timeToMins(startTime)) return null;
 
-                                const closed = isOwnerClosed(t);
-                                const busy = !closed && isBookedBusy(t);
+                                const closed = isOwnerClosed(endDate,t);
+                                const busy = !closed && isBookedBusy(endDate,t);
 
                                 return (
                                     <option
