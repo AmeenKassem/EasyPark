@@ -365,7 +365,7 @@ export default function ManageSpotsPage() {
                                                 </div>
 
                                                 <div className="ep-ms-spotMeta" style={{ marginTop: 8 }}>
-                                                    <span>🅿️</span>
+                                                    <span>{b.parkingLocation ? `🅿️ ${b.parkingLocation}` : `Parking ID: ${b.parkingId}`}</span>
                                                     <span>Parking ID: {b.parkingId}</span>
                                                 </div>
 
