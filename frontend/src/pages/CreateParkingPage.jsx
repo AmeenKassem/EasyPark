@@ -1,23 +1,23 @@
 import React, { useEffect, useState, useMemo } from 'react';
-
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-
-// --- HELPER: Generate Time Slots ---
+// --- HELPER: Generate Time Slots (00:00 - 23:59) ---
 const generateTimeOptions = (stepMinutes = 30) => {
     const times = [];
     for (let i = 0; i < 24 * 60; i += stepMinutes) {
         const hours = Math.floor(i / 60);
         const mins = i % 60;
+        // Force 24H format (e.g., 14:30)
         const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
         times.push(formatted);
     }
     times.push('23:59'); // Add End-of-Day
     return times;
 };
+
 const toYMD = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -25,6 +25,7 @@ const toYMD = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
+
 const splitIsoToDateTime = (iso) => {
     if (!iso) return { date: '', time: '' }
     const s = String(iso)
@@ -38,40 +39,56 @@ const normalizeTimeHHMM = (t) => {
     return String(t).slice(0, 5) // handles "HH:MM:SS" and "HH:MM"
 }
 
+// --- NEW HELPERS FOR DATEPICKER TIME ---
+const timeStringToDate = (timeStr) => {
+    if (!timeStr) return null;
+    const date = new Date();
+    const [hours, minutes] = timeStr.split(':');
+    date.setHours(parseInt(hours), parseInt(minutes));
+    date.setSeconds(0);
+    return date;
+};
+
+const dateToTimeString = (date) => {
+    if (!date) return '';
+    // Force 24H string generation
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
+
+
 const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', initialSpot = null }) => {
 
+    // --- STATE ---
+    const [formData, setFormData] = useState({
+        location: '',
+        lat: null,
+        lng: null,
+        pricePerHour: '',
+        covered: false,
+    });
 
-  // --- STATE ---
-  const [formData, setFormData] = useState({
-    location: '',
-    lat: null,
-    lng: null,
-    pricePerHour: '',
-    covered: false,
-  });
+    const [availabilityType, setAvailabilityType] = useState('specific');
 
-  const [availabilityType, setAvailabilityType] = useState('specific');
+    const [specificSlots, setSpecificSlots] = useState([
+        { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }
+    ]);
 
-  // CHANGE: Initialize with empty strings to force user selection
-  const [specificSlots, setSpecificSlots] = useState([
-      { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }
-  ]);
+    const [weeklySchedule, setWeeklySchedule] = useState({
+        0: { active: false, start: '', end: '' },
+        1: { active: false, start: '', end: '' },
+        2: { active: false, start: '', end: '' },
+        3: { active: false, start: '', end: '' },
+        4: { active: false, start: '', end: '' },
+        5: { active: false, start: '', end: '' },
+        6: { active: false, start: '', end: '' },
+    });
 
-  // CHANGE: Initialize recurring times with empty strings
-  const [weeklySchedule, setWeeklySchedule] = useState({
-      0: { active: false, start: '', end: '' },
-      1: { active: false, start: '', end: '' },
-      2: { active: false, start: '', end: '' },
-      3: { active: false, start: '', end: '' },
-      4: { active: false, start: '', end: '' },
-      5: { active: false, start: '', end: '' },
-      6: { active: false, start: '', end: '' },
-  });
+    const [batchTime, setBatchTime] = useState({ start: '', end: '' });
+    const [loading, setLoading] = useState(false);
+    const [apiMessage, setApiMessage] = useState('');
 
-  // CHANGE: Initialize batch times with empty strings
-  const [batchTime, setBatchTime] = useState({ start: '', end: '' });
-  const [loading, setLoading] = useState(false);
-  const [apiMessage, setApiMessage] = useState('');
     useEffect(() => {
         if (mode !== 'edit' || !initialSpot) return
 
@@ -136,495 +153,557 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         }
     }, [mode, initialSpot])
 
-  const timeOptions = useMemo(() => generateTimeOptions(30), []);
+    const timeOptions = useMemo(() => generateTimeOptions(30), []);
 
-  // --- HELPER: Get Current Time HH:MM ---
-  const getCurrentTimeHHMM = () => {
-      const now = new Date();
-      return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-  };
+    // --- HELPER: Get Current Time HH:MM ---
+    const getCurrentTimeHHMM = () => {
+        const now = new Date();
+        return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    };
 
-  // --- VALIDATION LOGIC ---
-  const validationErrors = useMemo(() => {
-      const errors = [];
-      if (!formData.lat || !formData.lng) errors.push("Please select a precise location from the list.");
-      if (!formData.pricePerHour || parseFloat(formData.pricePerHour) <= 0) errors.push("Price per hour must be greater than 0.");
+    // --- VALIDATION LOGIC ---
+    const validationErrors = useMemo(() => {
+        const errors = [];
+        if (!formData.lat || !formData.lng) errors.push("Please select a precise location from the list.");
+        if (!formData.pricePerHour || parseFloat(formData.pricePerHour) <= 0) errors.push("Price per hour must be greater than 0.");
 
-      if (availabilityType === 'specific') {
-          const invalidSlots = specificSlots.some(s => !s.startDate || !s.endDate || !s.startTime || !s.endTime);
-          if (invalidSlots) errors.push("Please complete all start and end dates/times.");
-      } else {
-          const activeDays = Object.values(weeklySchedule).filter(d => d.active);
-          if (activeDays.length === 0) {
-              errors.push("Please select at least one active day.");
-          } else if (activeDays.some(d => !d.start || !d.end)) {
-              errors.push("Please set start and end times for all selected days.");
-          }
-      }
-      return errors;
-  }, [formData, availabilityType, specificSlots, weeklySchedule]);
-
-  // --- TIME FILTERS FOR UI ---
-  const getStartOptions = () => timeOptions.filter(t => t !== '23:59');
-
-  const getValidStartTimes = (selectedDate) => {
-      let options = getStartOptions();
-      if (!selectedDate) return options;
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (selectedDate === todayStr) {
-          const currentHm = getCurrentTimeHHMM();
-          return options.filter(t => t > currentHm);
-      }
-      return options;
-  };
-
-  const getValidEndTimes = (startDate, endDate, startTime) => {
-      if (startDate && endDate && startDate === endDate) {
-          return timeOptions.filter(t => t > startTime);
-      }
-      return timeOptions;
-  };
-
-  const getValidRecurringEndTimes = (startTime) => {
-      if (!startTime) return timeOptions;
-      return timeOptions.filter(t => t > startTime);
-  };
-
-  // --- HANDLERS ---
-  const handleAddressSelect = ({ lat, lng, address, address_components }) => {
-    setApiMessage('');
-    if (address_components) {
-        const hasStreetNumber = address_components.some(component => component.types.includes('street_number'));
-        if (!hasStreetNumber) {
-            setApiMessage('⚠️ Please select a precise address that includes a street number.');
-            setFormData(prev => ({ ...prev, lat: null, lng: null, location: address }));
-            return;
+        if (availabilityType === 'specific') {
+            const invalidSlots = specificSlots.some(s => !s.startDate || !s.endDate || !s.startTime || !s.endTime);
+            if (invalidSlots) errors.push("Please complete all start and end dates/times.");
+        } else {
+            const activeDays = Object.values(weeklySchedule).filter(d => d.active);
+            if (activeDays.length === 0) {
+                errors.push("Please select at least one active day.");
+            } else if (activeDays.some(d => !d.start || !d.end)) {
+                errors.push("Please set start and end times for all selected days.");
+            }
         }
-    }
-    setFormData(prev => ({ ...prev, lat, lng, location: address }));
-  };
+        return errors;
+    }, [formData, availabilityType, specificSlots, weeklySchedule]);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-  };
+    // --- TIME FILTERS FOR UI ---
+    const getStartOptions = () => timeOptions.filter(t => t !== '23:59');
 
-  const addSpecificSlot = () => {
-      // CHANGE: Add new slot with empty times
-      setSpecificSlots(prev => [...prev, { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]);
-  };
+    const getValidStartTimes = (selectedDate) => {
+        let options = getStartOptions();
+        if (!selectedDate) return options;
 
-  const removeSpecificSlot = (id) => {
-      if (specificSlots.length === 1) return;
-      setSpecificSlots(prev => prev.filter(slot => slot.id !== id));
-  };
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (selectedDate === todayStr) {
+            const currentHm = getCurrentTimeHHMM();
+            return options.filter(t => t > currentHm);
+        }
+        return options;
+    };
 
-  // --- STRICT SANITIZATION UPDATE ---
-  const updateSpecificSlot = (id, field, value) => {
-      setSpecificSlots(prev => prev.map(slot => {
-          if (slot.id !== id) return slot;
+    const getValidEndTimes = (startDate, endDate, startTime) => {
+        if (startDate && endDate && startDate === endDate) {
+            return timeOptions.filter(t => t > startTime);
+        }
+        return timeOptions;
+    };
 
-          const newSlot = { ...slot, [field]: value };
-          const todayStr = new Date().toISOString().split('T')[0];
-          const currentTime = getCurrentTimeHHMM();
+    const getValidRecurringEndTimes = (startTime) => {
+        if (!startTime) return timeOptions;
+        return timeOptions.filter(t => t > startTime);
+    };
 
-          // 2. Sanitize START TIME (vs Today)
-          if (newSlot.startDate === todayStr && newSlot.startTime) {
-              if (newSlot.startTime <= currentTime) {
-                  newSlot.startTime = '';
-              }
-          }
+    // --- HANDLERS ---
+    const handleAddressSelect = ({ lat, lng, address, address_components }) => {
+        setApiMessage('');
+        if (address_components) {
+            const hasStreetNumber = address_components.some(component => component.types.includes('street_number'));
+            if (!hasStreetNumber) {
+                setApiMessage('⚠️ Please select a precise address that includes a street number.');
+                setFormData(prev => ({ ...prev, lat: null, lng: null, location: address }));
+                return;
+            }
+        }
+        setFormData(prev => ({ ...prev, lat, lng, location: address }));
+    };
 
-          // 3. Sanitize END DATE (vs Start Date)
-          if (newSlot.startDate && newSlot.endDate) {
-              if (newSlot.endDate < newSlot.startDate) {
-                  newSlot.endDate = '';
-                  newSlot.endTime = '';
-              }
-          }
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
 
-          // 4. Sanitize END TIME (vs Start Time on same day)
-          if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
-              if (newSlot.startTime && newSlot.endTime) {
-                  if (newSlot.endTime <= newSlot.startTime) {
-                      newSlot.endTime = '';
-                  }
-              }
-          }
+    const addSpecificSlot = () => {
+        setSpecificSlots(prev => [...prev, { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]);
+    };
 
-          return newSlot;
-      }));
-  };
+    const removeSpecificSlot = (id) => {
+        if (specificSlots.length === 1) return;
+        setSpecificSlots(prev => prev.filter(slot => slot.id !== id));
+    };
 
-  const toggleDay = (dayIndex) => {
-      setWeeklySchedule(prev => ({ ...prev, [dayIndex]: { ...prev[dayIndex], active: !prev[dayIndex].active } }));
-  };
+    const updateSpecificSlot = (id, field, value) => {
+        setSpecificSlots(prev => prev.map(slot => {
+            if (slot.id !== id) return slot;
 
-  const updateDayTime = (dayIndex, field, value) => {
-      setWeeklySchedule(prev => {
-          const newData = { ...prev[dayIndex], [field]: value };
-          if (field === 'start' && newData.end && value >= newData.end) {
-             newData.end = '';
-          }
-          return { ...prev, [dayIndex]: newData };
-      });
-  };
+            const newSlot = { ...slot, [field]: value };
+            const todayStr = new Date().toISOString().split('T')[0];
+            const currentTime = getCurrentTimeHHMM();
 
-  const handleBatchTimeChange = (field, value) => {
-      setBatchTime(prev => {
-          const newState = { ...prev, [field]: value };
-          if (field === 'start' && newState.end && value >= newState.end) {
-              newState.end = '';
-          }
-          return newState;
-      });
-  };
-
-  const applyBatchTime = () => {
-      if (!batchTime.start || !batchTime.end) {
-          setApiMessage('Please select valid Quick Apply times first.');
-          return;
-      }
-      setWeeklySchedule(prev => {
-          const newState = { ...prev };
-          Object.keys(newState).forEach(key => {
-              if (newState[key].active) {
-                  newState[key].start = batchTime.start;
-                  newState[key].end = batchTime.end;
-              }
-          });
-          return newState;
-      });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (validationErrors.length > 0) return;
-
-    setLoading(true);
-    setApiMessage('');
-
-    try {
-      const token = localStorage.getItem('easypark_token');
-      if (!token) {
-        setApiMessage('You must be logged in to create a parking spot.');
-        setLoading(false);
-        return;
-      }
-
-      let payload = {
-        location: formData.location,
-        lat: formData.lat,
-        lng: formData.lng,
-        pricePerHour: parseFloat(formData.pricePerHour),
-        covered: formData.covered,
-        availabilityType: availabilityType.toUpperCase()
-      };
-
-      if (availabilityType === 'specific') {
-          const formattedSlots = specificSlots.map(slot => ({
-              start: `${slot.startDate}T${slot.startTime}:00`,
-              end: `${slot.endDate}T${slot.endTime}:00`
-          }));
-          payload.specificAvailability = formattedSlots;
-      } else {
-          const scheduleList = Object.keys(weeklySchedule)
-              .map((key) => {
-                  const dayOfWeek = parseInt(key)
-                  const d = weeklySchedule[key]
-                  if (!d.active) return null
-                  return {
-                      dayOfWeek,
-                      start: d.start,
-                      end: d.end,
-                  }
-              })
-              .filter(Boolean)
-          payload.recurringSchedule = scheduleList
-
-      }
-
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-
-        if (mode === 'edit') {
-            if (!initialSpot?.id) {
-                throw new Error('Missing spot id for edit.')
+            // Sanitize START TIME (vs Today)
+            if (newSlot.startDate === todayStr && newSlot.startTime) {
+                if (newSlot.startTime <= currentTime) {
+                    newSlot.startTime = '';
+                }
+            }
+            // Sanitize END DATE (vs Start Date)
+            if (newSlot.startDate && newSlot.endDate) {
+                if (newSlot.endDate < newSlot.startDate) {
+                    newSlot.endDate = '';
+                    newSlot.endTime = '';
+                }
+            }
+            // Sanitize END TIME (vs Start Time on same day)
+            if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
+                if (newSlot.startTime && newSlot.endTime) {
+                    if (newSlot.endTime <= newSlot.startTime) {
+                        newSlot.endTime = '';
+                    }
+                }
             }
 
-            await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            })
+            return newSlot;
+        }));
+    };
 
-            setApiMessage('Success! Parking spot updated.')
-            setTimeout(() => { onUpdated?.(); onClose?.(); }, 700)
-        } else {
-            await axios.post(`${API_BASE}/api/parking-spots`, payload, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            })
+    const toggleDay = (dayIndex) => {
+        setWeeklySchedule(prev => ({ ...prev, [dayIndex]: { ...prev[dayIndex], active: !prev[dayIndex].active } }));
+    };
 
-            setApiMessage('Success! Parking spot created.')
-            setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
+    const updateDayTime = (dayIndex, field, value) => {
+        setWeeklySchedule(prev => {
+            const newData = { ...prev[dayIndex], [field]: value };
+            if (field === 'start' && newData.end && value >= newData.end) {
+                newData.end = '';
+            }
+            return { ...prev, [dayIndex]: newData };
+        });
+    };
+
+    const handleBatchTimeChange = (field, value) => {
+        setBatchTime(prev => {
+            const newState = { ...prev, [field]: value };
+            if (field === 'start' && newState.end && value >= newState.end) {
+                newState.end = '';
+            }
+            return newState;
+        });
+    };
+
+    const applyBatchTime = () => {
+        if (!batchTime.start || !batchTime.end) {
+            setApiMessage('Please select valid Quick Apply times first.');
+            return;
         }
+        setWeeklySchedule(prev => {
+            const newState = { ...prev };
+            Object.keys(newState).forEach(key => {
+                if (newState[key].active) {
+                    newState[key].start = batchTime.start;
+                    newState[key].end = batchTime.end;
+                }
+            });
+            return newState;
+        });
+    };
 
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (validationErrors.length > 0) return;
 
-    } catch (error) {
-        const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
-        setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
-    } finally {
-      setLoading(false);
-    }
-  };
+        setLoading(true);
+        setApiMessage('');
 
-  const daysLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const daysFullNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        try {
+            const token = localStorage.getItem('easypark_token');
+            if (!token) {
+                setApiMessage('You must be logged in to create a parking spot.');
+                setLoading(false);
+                return;
+            }
 
-  return (
-      <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-          <style>{`
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  input[type=number] { -moz-appearance: textfield; }
+            let payload = {
+                location: formData.location,
+                lat: formData.lat,
+                lng: formData.lng,
+                pricePerHour: parseFloat(formData.pricePerHour),
+                covered: formData.covered,
+                availabilityType: availabilityType.toUpperCase()
+            };
 
-  /* Match booking calendar look */
-  .ep-date-wrap { width: 100%; }
-  .ep-date-picker {
-    width: 100%;
-    height: 38px;               /* matches your current compact slot row */
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    font-size: 13px;
-    outline: none;
-    color: #1e293b;
-    font-family: inherit;
-    background: #fff;
-    box-sizing: border-box;
-  }
-  .ep-date-picker:focus {
-    border-color: #94a3b8;
-  }
+            if (availabilityType === 'specific') {
+                const formattedSlots = specificSlots.map(slot => ({
+                    start: `${slot.startDate}T${slot.startTime}:00`,
+                    end: `${slot.endDate}T${slot.endTime}:00`
+                }));
+                payload.specificAvailability = formattedSlots;
+            } else {
+                const scheduleList = Object.keys(weeklySchedule)
+                    .map((key) => {
+                        const dayOfWeek = parseInt(key)
+                        const d = weeklySchedule[key]
+                        if (!d.active) return null
+                        return {
+                            dayOfWeek,
+                            start: d.start,
+                            end: d.end,
+                        }
+                    })
+                    .filter(Boolean)
+                payload.recurringSchedule = scheduleList
+            }
 
-  /* Optional: make the popup look cleaner */
-  .react-datepicker {
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
-    overflow: hidden;
-  }
-  .react-datepicker__header {
-    background: #ffffff;
-    border-bottom: 1px solid #f1f5f9;
-  }
-`}</style>
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+            if (mode === 'edit') {
+                if (!initialSpot?.id) throw new Error('Missing spot id for edit.')
+                await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                })
+                setApiMessage('Success! Parking spot updated.')
+                setTimeout(() => { onUpdated?.(); onClose?.(); }, 700)
+            } else {
+                await axios.post(`${API_BASE}/api/parking-spots`, payload, {
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                })
+                setApiMessage('Success! Parking spot created.')
+                setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
+            }
+        } catch (error) {
+            const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
+            setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-          <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
-              {mode === 'edit' ? 'Edit Spot Availability' : 'Add New Spot'}
-          </h2>
+    const daysLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const daysFullNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-          <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
-      </div>
+    return (
+        <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+            <style>{`
+      input[type=number]::-webkit-outer-spin-button,
+      input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      input[type=number] { -moz-appearance: textfield; }
 
-      <form onSubmit={handleSubmit}>
-          <div style={groupStyle}>
-              <label style={labelStyle}>Location</label>
+      /* Match booking calendar look */
+      .ep-date-wrap { width: 100%; }
+      .ep-date-picker {
+        width: 100%;
+        height: 38px;
+        padding: 0 10px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        font-size: 13px;
+        outline: none;
+        color: #1e293b;
+        font-family: inherit;
+        background: #fff;
+        box-sizing: border-box;
+      }
+      .ep-date-picker:focus {
+        border-color: #94a3b8;
+      }
+      .react-datepicker {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+        overflow: hidden;
+      }
+      .react-datepicker__header {
+        background: #ffffff;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      /* Ensure time list in datepicker is clean */
+      .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
+        padding: 8px;
+        display: flex;
+        justify-content: center;
+      }
+    `}</style>
 
-              {mode === 'edit' ? (
-                  <>
-                      <input
-                          value={formData.location || ''}
-                          disabled
-                          readOnly
-                          style={{
-                              ...inputStyle,
-                              backgroundColor: '#f8fafc',
-                              cursor: 'not-allowed',
-                              color: '#334155',
-                          }}
-                      />
-                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-                          Location cannot be changed when editing. Create a new spot if you need a different address.
-                      </div>
-                  </>
-              ) : (
-                  <>
-                      <AddressAutocomplete
-                          onAddressSelect={handleAddressSelect}
-                          options={{ types: ['address'], componentRestrictions: { country: 'il' } }}
-                      />
-                      {formData.location && formData.lat && (
-                          <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span>📍</span> {formData.location}
-                          </div>
-                      )}
-                      {apiMessage && apiMessage.includes('precise') && (
-                          <div style={{ marginTop: '5px', fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
-                              {apiMessage}
-                          </div>
-                      )}
-                  </>
-              )}
-          </div>
-
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
-            <div style={groupStyle}>
-                <label style={labelStyle}>Price / Hour</label>
-                <div style={{...inputWrapperStyle, padding: '0 8px'}}>
-                    <button type="button" onClick={() => { const newVal = parseFloat(formData.pricePerHour || 0) - 0.5; if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>−</button>
-                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px' }}>
-                        <input type="number" name="pricePerHour" value={formData.pricePerHour} onChange={handleChange} placeholder="0" style={{ ...inputStyle, border: 'none', textAlign: 'right', fontSize: '18px', fontWeight: 'bold', width: '45px', padding: 0, backgroundColor: 'transparent' }} />
-                        <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#64748b' }}>₪</span>
-                    </div>
-                    <button type="button" onClick={() => { const newVal = (parseFloat(formData.pricePerHour) || 0) + 0.5; handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>+</button>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
+                    {mode === 'edit' ? 'Edit Spot Availability' : 'Add New Spot'}
+                </h2>
+                <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
             </div>
-            <div style={groupStyle}>
-                <label style={labelStyle}>Features</label>
-                <div onClick={() => setFormData(prev => ({ ...prev, covered: !prev.covered }))} style={{ ...inputWrapperStyle, justifyContent: 'space-between', padding: '0 15px', cursor: 'pointer', borderColor: formData.covered ? '#3b82f6' : '#e2e8f0', backgroundColor: formData.covered ? '#eff6ff' : '#fff' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '500', color: formData.covered ? '#1d4ed8' : '#64748b' }}>Covered</span>
-                    <div style={{ width: '36px', height: '20px', backgroundColor: formData.covered ? '#3b82f6' : '#cbd5e1', borderRadius: '20px', position: 'relative', transition: 'all 0.2s' }}>
-                        <div style={{ width: '16px', height: '16px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: formData.covered ? '18px' : '2px', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div style={{ backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', marginBottom: '24px' }}>
-            <button type="button" onClick={() => setAvailabilityType('specific')} style={availabilityType === 'specific' ? activeTabStyle : inactiveTabStyle}>Specific Dates</button>
-            <button type="button" onClick={() => setAvailabilityType('recurring')} style={availabilityType === 'recurring' ? activeTabStyle : inactiveTabStyle}>Weekly Schedule</button>
-        </div>
-
-        {/* Specific Dates Logic */}
-        {availabilityType === 'specific' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                 <div style={{fontSize: '13px', color: '#64748b', marginBottom: '5px'}}>Set the start and end time for when the parking is available.</div>
-                 {specificSlots.map((slot) => {
-                     const validEndTimes = getValidEndTimes(slot.startDate, slot.endDate, slot.startTime);
-                     const isCurrentEndTimeValid = !slot.endTime || validEndTimes.includes(slot.endTime);
-                     const displayEndTime = isCurrentEndTimeValid ? slot.endTime : '';
-
-                     return (
-                     <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                         <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
-                             <span style={{...subLabelStyle, color: '#166534'}}>FROM (Start)</span>
-                             <DatePicker
-                                 selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
-                                 onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
-                                 minDate={new Date()}
-                                 dateFormat="MM/dd/yyyy"
-                                 placeholderText="Select date"
-                                 className="ep-date-picker"
-                                 wrapperClassName="ep-date-wrap"
-                             />
-
-                             <select value={slot.startTime} onChange={(e) => updateSpecificSlot(slot.id, 'startTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
-                                <option value="" disabled>--:--</option>
-                                {getValidStartTimes(slot.startDate).map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
-                         </div>
-                         <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
-                         <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
-                             <span style={{...subLabelStyle, color: '#991b1b'}}>TO (End)</span>
-                             <DatePicker
-                                 selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
-                                 onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
-                                 minDate={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : new Date()}
-                                 dateFormat="MM/dd/yyyy"
-                                 placeholderText="Select date"
-                                 className="ep-date-picker"
-                                 wrapperClassName="ep-date-wrap"
-                             />
-
-                             <select value={displayEndTime} onChange={(e) => updateSpecificSlot(slot.id, 'endTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
-                                <option value="" disabled>--:--</option>
-                                {validEndTimes.map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
-                         </div>
-                         {specificSlots.length > 1 && <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>&times;</button>}
-                     </div>
-                 );
-                 })}
-                 <button type="button" onClick={addSpecificSlot} style={addBtnStyle}>+ Add Another Range</button>
-            </div>
-        )}
-
-        {/* Recurring Logic */}
-        {availabilityType === 'recurring' && (
-            <div>
-                <label style={labelStyle}>Select Days</label>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
-                    {daysLabels.map((dayLabel, index) => (
-                        <button key={index} type="button" onClick={() => toggleDay(index)} style={{ width: '42px', height: '42px', borderRadius: '12px', border: 'none', backgroundColor: weeklySchedule[index].active ? '#2563eb' : '#f1f5f9', color: weeklySchedule[index].active ? 'white' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: weeklySchedule[index].active ? '0 4px 12px rgba(37, 99, 235, 0.2)' : 'none' }}>{dayLabel}</button>
-                    ))}
-                </div>
-                <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>⚡ Quick Apply</span>
-                        <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                         <select value={batchTime.start} onChange={e => handleBatchTimeChange('start', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
-                            <option value="" disabled>--:--</option>
-                            {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
-                         </select>
-                         <span style={{ color: '#94a3b8' }}>➜</span>
-                         <select value={batchTime.end} onChange={e => handleBatchTimeChange('end', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
-                            <option value="" disabled>--:--</option>
-                            {getValidRecurringEndTimes(batchTime.start).map(t => <option key={t} value={t}>{t}</option>)}
-                         </select>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {Object.keys(weeklySchedule).map((key) => {
-                        const dayIndex = parseInt(key);
-                        const dayData = weeklySchedule[dayIndex];
-                        if (!dayData.active) return null;
-                        return (
-                            <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
-                                <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
-                                <select value={dayData.start} onChange={(e) => updateDayTime(dayIndex, 'start', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
-                                    <option value="" disabled>--:--</option>
-                                    {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                                <span style={{ color: '#cbd5e1' }}>-</span>
-                                <select value={dayData.end} onChange={(e) => updateDayTime(dayIndex, 'end', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
-                                    <option value="" disabled>--:--</option>
-                                    {getValidRecurringEndTimes(dayData.start).map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
+            <form onSubmit={handleSubmit}>
+                <div style={groupStyle}>
+                    <label style={labelStyle}>Location</label>
+                    {mode === 'edit' ? (
+                        <>
+                            <input
+                                value={formData.location || ''}
+                                disabled
+                                readOnly
+                                style={{
+                                    ...inputStyle,
+                                    backgroundColor: '#f8fafc',
+                                    cursor: 'not-allowed',
+                                    color: '#334155',
+                                }}
+                            />
+                            <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
+                                Location cannot be changed when editing. Create a new spot if you need a different address.
                             </div>
-                        );
-                    })}
+                        </>
+                    ) : (
+                        <>
+                            <AddressAutocomplete
+                                onAddressSelect={handleAddressSelect}
+                                options={{ types: ['address'], componentRestrictions: { country: 'il' } }}
+                            />
+                            {formData.location && formData.lat && (
+                                <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>📍</span> {formData.location}
+                                </div>
+                            )}
+                            {apiMessage && apiMessage.includes('precise') && (
+                                <div style={{ marginTop: '5px', fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
+                                    {apiMessage}
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
-            </div>
-        )}
 
-        {validationErrors.length > 0 && (
-            <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '6px' }}>⚠️ Please fill in missing details:</div>
-                <ul style={{ margin: 0, paddingLeft: '20px', color: '#b91c1c', fontSize: '12px' }}>
-                    {validationErrors.map((err, idx) => <li key={idx} style={{ marginBottom: '2px' }}>{err}</li>)}
-                </ul>
-            </div>
-        )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
+                    <div style={groupStyle}>
+                        <label style={labelStyle}>Price / Hour</label>
+                        <div style={{ ...inputWrapperStyle, padding: '0 8px' }}>
+                            <button type="button" onClick={() => { const newVal = parseFloat(formData.pricePerHour || 0) - 0.5; if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>−</button>
+                            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px' }}>
+                                <input type="number" name="pricePerHour" value={formData.pricePerHour} onChange={handleChange} placeholder="0" style={{ ...inputStyle, border: 'none', textAlign: 'right', fontSize: '18px', fontWeight: 'bold', width: '45px', padding: 0, backgroundColor: 'transparent' }} />
+                                <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#64748b' }}>₪</span>
+                            </div>
+                            <button type="button" onClick={() => { const newVal = (parseFloat(formData.pricePerHour) || 0) + 0.5; handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>+</button>
+                        </div>
+                    </div>
+                    <div style={groupStyle}>
+                        <label style={labelStyle}>Features</label>
+                        <div onClick={() => setFormData(prev => ({ ...prev, covered: !prev.covered }))} style={{ ...inputWrapperStyle, justifyContent: 'space-between', padding: '0 15px', cursor: 'pointer', borderColor: formData.covered ? '#3b82f6' : '#e2e8f0', backgroundColor: formData.covered ? '#eff6ff' : '#fff' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '500', color: formData.covered ? '#1d4ed8' : '#64748b' }}>Covered</span>
+                            <div style={{ width: '36px', height: '20px', backgroundColor: formData.covered ? '#3b82f6' : '#cbd5e1', borderRadius: '20px', position: 'relative', transition: 'all 0.2s' }}>
+                                <div style={{ width: '16px', height: '16px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: formData.covered ? '18px' : '2px', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-        <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #f1f5f9' }}>
-            <button type="button" onClick={onClose} disabled={loading} style={cancelButtonStyle}>Cancel</button>
-            <button type="submit" disabled={loading || validationErrors.length > 0} style={{ ...submitButtonStyle, opacity: (loading || validationErrors.length > 0) ? 0.5 : 1, cursor: (loading || validationErrors.length > 0) ? 'not-allowed' : 'pointer' }}>
-                {loading ? 'Creating...' : 'Confirm'}
-            </button>
+                <div style={{ backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', marginBottom: '24px' }}>
+                    <button type="button" onClick={() => setAvailabilityType('specific')} style={availabilityType === 'specific' ? activeTabStyle : inactiveTabStyle}>Specific Dates</button>
+                    <button type="button" onClick={() => setAvailabilityType('recurring')} style={availabilityType === 'recurring' ? activeTabStyle : inactiveTabStyle}>Weekly Schedule</button>
+                </div>
+
+                {/* Specific Dates Logic */}
+                {availabilityType === 'specific' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '5px' }}>Set the start and end time for when the parking is available.</div>
+                        {specificSlots.map((slot) => {
+                            const displayEndTime = slot.endTime;
+
+                            return (
+                                <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                        <span style={{ ...subLabelStyle, color: '#166534' }}>FROM (Start)</span>
+                                        <DatePicker
+                                            selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
+                                            onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
+                                            minDate={new Date()}
+                                            dateFormat="MM/dd/yyyy"
+                                            placeholderText="Select date"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+
+                                        <DatePicker
+                                            selected={timeStringToDate(slot.startTime)}
+                                            onChange={(date) => updateSpecificSlot(slot.id, 'startTime', dateToTimeString(date))}
+                                            showTimeSelect
+                                            showTimeSelectOnly
+                                            timeIntervals={30}
+                                            timeCaption="Time"
+                                            dateFormat="HH:mm"
+                                            timeFormat="HH:mm"
+                                            placeholderText="--:--"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+                                    </div>
+
+                                    <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                        <span style={{ ...subLabelStyle, color: '#991b1b' }}>TO (End)</span>
+                                        <DatePicker
+                                            selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
+                                            onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
+                                            minDate={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : new Date()}
+                                            dateFormat="MM/dd/yyyy"
+                                            placeholderText="Select date"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+
+                                        <DatePicker
+                                            selected={timeStringToDate(displayEndTime)}
+                                            onChange={(date) => updateSpecificSlot(slot.id, 'endTime', dateToTimeString(date))}
+                                            showTimeSelect
+                                            showTimeSelectOnly
+                                            timeIntervals={30}
+                                            timeCaption="Time"
+                                            dateFormat="HH:mm"
+                                            timeFormat="HH:mm"
+                                            placeholderText="--:--"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+                                    </div>
+
+                                    {specificSlots.length > 1 && (
+                                        <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>
+                                            &times;
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        <button type="button" onClick={addSpecificSlot} style={addBtnStyle}>+ Add Another Range</button>
+                    </div>
+                )}
+
+                {/* Recurring Logic - NOW UPDATED TO DATEPICKER */}
+                {availabilityType === 'recurring' && (
+                    <div>
+                        <label style={labelStyle}>Select Days</label>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
+                            {daysLabels.map((dayLabel, index) => (
+                                <button key={index} type="button" onClick={() => toggleDay(index)} style={{ width: '42px', height: '42px', borderRadius: '12px', border: 'none', backgroundColor: weeklySchedule[index].active ? '#2563eb' : '#f1f5f9', color: weeklySchedule[index].active ? 'white' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: weeklySchedule[index].active ? '0 4px 12px rgba(37, 99, 235, 0.2)' : 'none' }}>{dayLabel}</button>
+                            ))}
+                        </div>
+                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>⚡ Quick Apply</span>
+                                <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+
+                                {/* BATCH START */}
+                                <DatePicker
+                                    selected={timeStringToDate(batchTime.start)}
+                                    onChange={(date) => handleBatchTimeChange('start', dateToTimeString(date))}
+                                    showTimeSelect
+                                    showTimeSelectOnly
+                                    timeIntervals={30}
+                                    timeCaption="Time"
+                                    dateFormat="HH:mm"
+                                    timeFormat="HH:mm"
+                                    placeholderText="--:--"
+                                    className="ep-date-picker"
+                                    wrapperClassName="ep-date-wrap"
+                                />
+                                <span style={{ color: '#94a3b8' }}>➜</span>
+
+                                {/* BATCH END */}
+                                <DatePicker
+                                    selected={timeStringToDate(batchTime.end)}
+                                    onChange={(date) => handleBatchTimeChange('end', dateToTimeString(date))}
+                                    minTime={timeStringToDate(batchTime.start)} // Prevent picking earlier time
+                                    maxTime={timeStringToDate("23:59")}
+                                    showTimeSelect
+                                    showTimeSelectOnly
+                                    timeIntervals={30}
+                                    timeCaption="Time"
+                                    dateFormat="HH:mm"
+                                    timeFormat="HH:mm"
+                                    placeholderText="--:--"
+                                    className="ep-date-picker"
+                                    wrapperClassName="ep-date-wrap"
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
+                            {Object.keys(weeklySchedule).map((key) => {
+                                const dayIndex = parseInt(key);
+                                const dayData = weeklySchedule[dayIndex];
+                                if (!dayData.active) return null;
+                                return (
+                                    <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                        <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
+
+                                        {/* RECURRING START */}
+                                        <DatePicker
+                                            selected={timeStringToDate(dayData.start)}
+                                            onChange={(date) => updateDayTime(dayIndex, 'start', dateToTimeString(date))}
+                                            showTimeSelect
+                                            showTimeSelectOnly
+                                            timeIntervals={30}
+                                            timeCaption="Time"
+                                            dateFormat="HH:mm"
+                                            timeFormat="HH:mm"
+                                            placeholderText="--:--"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+
+                                        <span style={{ color: '#cbd5e1' }}>-</span>
+
+                                        {/* RECURRING END */}
+                                        <DatePicker
+                                            selected={timeStringToDate(dayData.end)}
+                                            onChange={(date) => updateDayTime(dayIndex, 'end', dateToTimeString(date))}
+                                            minTime={timeStringToDate(dayData.start)} // Prevent picking earlier time
+                                            maxTime={timeStringToDate("23:59")}
+                                            showTimeSelect
+                                            showTimeSelectOnly
+                                            timeIntervals={30}
+                                            timeCaption="Time"
+                                            dateFormat="HH:mm"
+                                            timeFormat="HH:mm"
+                                            placeholderText="--:--"
+                                            className="ep-date-picker"
+                                            wrapperClassName="ep-date-wrap"
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {validationErrors.length > 0 && (
+                    <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '6px' }}>⚠️ Please fill in missing details:</div>
+                        <ul style={{ margin: 0, paddingLeft: '20px', color: '#b91c1c', fontSize: '12px' }}>
+                            {validationErrors.map((err, idx) => <li key={idx} style={{ marginBottom: '2px' }}>{err}</li>)}
+                        </ul>
+                    </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #f1f5f9' }}>
+                    <button type="button" onClick={onClose} disabled={loading} style={cancelButtonStyle}>Cancel</button>
+                    <button type="submit" disabled={loading || validationErrors.length > 0} style={{ ...submitButtonStyle, opacity: (loading || validationErrors.length > 0) ? 0.5 : 1, cursor: (loading || validationErrors.length > 0) ? 'not-allowed' : 'pointer' }}>
+                        {loading ? 'Creating...' : 'Confirm'}
+                    </button>
+                </div>
+
+                {apiMessage && !apiMessage.includes('precise') && (
+                    <div style={{ marginTop: '15px', padding: '10px', textAlign: 'center', borderRadius: '8px', backgroundColor: apiMessage.includes('Success') ? '#dcfce7' : '#fee2e2', color: apiMessage.includes('Success') ? '#166534' : '#991b1b', fontSize: '14px', fontWeight: '500' }}>{apiMessage}</div>
+                )}
+            </form>
         </div>
-
-        {apiMessage && !apiMessage.includes('precise') && (
-          <div style={{ marginTop: '15px', padding: '10px', textAlign: 'center', borderRadius: '8px', backgroundColor: apiMessage.includes('Success') ? '#dcfce7' : '#fee2e2', color: apiMessage.includes('Success') ? '#166534' : '#991b1b', fontSize: '14px', fontWeight: '500' }}>{apiMessage}</div>
-        )}
-      </form>
-    </div>
-  );
+    );
 };
 
+// --- STYLES ---
 const groupStyle = { display: 'flex', flexDirection: 'column', gap: '6px' };
 const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
 const subLabelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '2px', textTransform: 'uppercase' };
