@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 import DatePicker from "react-datepicker";
@@ -24,8 +25,21 @@ const toYMD = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
+const splitIsoToDateTime = (iso) => {
+    if (!iso) return { date: '', time: '' }
+    const s = String(iso)
+    const [d, tRaw] = s.split('T')
+    const t = (tRaw || '').slice(0, 5) // "HH:MM"
+    return { date: d || '', time: t || '' }
+}
 
-const CreateParkingPage = ({ onClose, onCreated }) => {
+const normalizeTimeHHMM = (t) => {
+    if (!t) return ''
+    return String(t).slice(0, 5) // handles "HH:MM:SS" and "HH:MM"
+}
+
+const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', initialSpot = null }) => {
+
 
   // --- STATE ---
   const [formData, setFormData] = useState({
@@ -58,6 +72,69 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
   const [batchTime, setBatchTime] = useState({ start: '', end: '' });
   const [loading, setLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState('');
+    useEffect(() => {
+        if (mode !== 'edit' || !initialSpot) return
+
+        // Basic fields
+        setFormData({
+            location: initialSpot.location || '',
+            lat: initialSpot.lat ?? null,
+            lng: initialSpot.lng ?? null,
+            pricePerHour: String(initialSpot.pricePerHour ?? ''),
+            covered: !!initialSpot.covered,
+        })
+
+        // Availability type
+        const t = String(initialSpot.availabilityType || '').toLowerCase()
+        if (t === 'recurring') setAvailabilityType('recurring')
+        else setAvailabilityType('specific') // default
+
+        // Specific slots prefill
+        if (String(initialSpot.availabilityType || '').toUpperCase() === 'SPECIFIC') {
+            const slots = Array.isArray(initialSpot.specificAvailability) ? initialSpot.specificAvailability : []
+            const mapped = slots.length
+                ? slots.map((s) => {
+                    const start = splitIsoToDateTime(s.start)
+                    const end = splitIsoToDateTime(s.end)
+                    return {
+                        id: Date.now() + Math.random(),
+                        startDate: start.date,
+                        startTime: start.time,
+                        endDate: end.date,
+                        endTime: end.time,
+                    }
+                })
+                : [{ id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]
+
+            setSpecificSlots(mapped)
+        }
+
+        // Recurring schedule prefill
+        if (String(initialSpot.availabilityType || '').toUpperCase() === 'RECURRING') {
+            const rec = Array.isArray(initialSpot.recurringSchedule) ? initialSpot.recurringSchedule : []
+            const base = {
+                0: { active: false, start: '', end: '' },
+                1: { active: false, start: '', end: '' },
+                2: { active: false, start: '', end: '' },
+                3: { active: false, start: '', end: '' },
+                4: { active: false, start: '', end: '' },
+                5: { active: false, start: '', end: '' },
+                6: { active: false, start: '', end: '' },
+            }
+
+            for (const r of rec) {
+                const d = Number(r.dayOfWeek)
+                if (!Number.isFinite(d) || d < 0 || d > 6) continue
+                base[d] = {
+                    active: true,
+                    start: normalizeTimeHHMM(r.start),
+                    end: normalizeTimeHHMM(r.end),
+                }
+            }
+
+            setWeeklySchedule(base)
+        }
+    }, [mode, initialSpot])
 
   const timeOptions = useMemo(() => generateTimeOptions(30), []);
 
@@ -253,18 +330,43 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
           payload.specificAvailability = formattedSlots;
       } else {
           const scheduleList = Object.keys(weeklySchedule)
-              .map(key => ({ dayOfWeek: parseInt(key), ...weeklySchedule[key] }))
-              .filter(day => day.active);
-          payload.recurringSchedule = scheduleList;
+              .map((key) => {
+                  const dayOfWeek = parseInt(key)
+                  const d = weeklySchedule[key]
+                  if (!d.active) return null
+                  return {
+                      dayOfWeek,
+                      start: d.start,
+                      end: d.end,
+                  }
+              })
+              .filter(Boolean)
+          payload.recurringSchedule = scheduleList
+
       }
 
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-      await axios.post(`${API_BASE}/api/parking-spots`, payload, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
-      setApiMessage('Success! Parking spot created.');
-      setTimeout(() => { onCreated?.(); onClose?.(); }, 700);
+        if (mode === 'edit') {
+            if (!initialSpot?.id) {
+                throw new Error('Missing spot id for edit.')
+            }
+
+            await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            })
+
+            setApiMessage('Success! Parking spot updated.')
+            setTimeout(() => { onUpdated?.(); onClose?.(); }, 700)
+        } else {
+            await axios.post(`${API_BASE}/api/parking-spots`, payload, {
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            })
+
+            setApiMessage('Success! Parking spot created.')
+            setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
+        }
+
 
     } catch (error) {
         const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
@@ -318,17 +420,54 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
 
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-          <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>Add New Spot</h2>
+          <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
+              {mode === 'edit' ? 'Edit Spot Availability' : 'Add New Spot'}
+          </h2>
+
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={groupStyle}>
-            <label style={labelStyle}>Location</label>
-            <AddressAutocomplete onAddressSelect={handleAddressSelect} options={{ types: ['address'], componentRestrictions: { country: "il" } }} />
-            {formData.location && formData.lat && <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><span>📍</span> {formData.location}</div>}
-            {apiMessage && apiMessage.includes('precise') && <div style={{ marginTop: '5px', fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>{apiMessage}</div>}
-        </div>
+          <div style={groupStyle}>
+              <label style={labelStyle}>Location</label>
+
+              {mode === 'edit' ? (
+                  <>
+                      <input
+                          value={formData.location || ''}
+                          disabled
+                          readOnly
+                          style={{
+                              ...inputStyle,
+                              backgroundColor: '#f8fafc',
+                              cursor: 'not-allowed',
+                              color: '#334155',
+                          }}
+                      />
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
+                          Location cannot be changed when editing. Create a new spot if you need a different address.
+                      </div>
+                  </>
+              ) : (
+                  <>
+                      <AddressAutocomplete
+                          onAddressSelect={handleAddressSelect}
+                          options={{ types: ['address'], componentRestrictions: { country: 'il' } }}
+                      />
+                      {formData.location && formData.lat && (
+                          <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span>📍</span> {formData.location}
+                          </div>
+                      )}
+                      {apiMessage && apiMessage.includes('precise') && (
+                          <div style={{ marginTop: '5px', fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>
+                              {apiMessage}
+                          </div>
+                      )}
+                  </>
+              )}
+          </div>
+
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
             <div style={groupStyle}>
@@ -474,7 +613,7 @@ const CreateParkingPage = ({ onClose, onCreated }) => {
         <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #f1f5f9' }}>
             <button type="button" onClick={onClose} disabled={loading} style={cancelButtonStyle}>Cancel</button>
             <button type="submit" disabled={loading || validationErrors.length > 0} style={{ ...submitButtonStyle, opacity: (loading || validationErrors.length > 0) ? 0.5 : 1, cursor: (loading || validationErrors.length > 0) ? 'not-allowed' : 'pointer' }}>
-                {loading ? 'Creating...' : 'Create Spot'}
+                {loading ? 'Creating...' : 'Confirm'}
             </button>
         </div>
 
