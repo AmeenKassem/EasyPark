@@ -63,6 +63,15 @@ public class ParkingService {
         if (!p.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("You are not the owner of this parking spot");
         }
+// Block updates only if there is an APPROVED booking that has not ended yet
+        if (bookingRepository.existsApprovedNotEndedForParking(parkingId, LocalDateTime.now())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot update spot: there is an approved booking that has not ended yet."
+            );
+        }
+
+
 
         // Update basic fields
         p.setLocation(req.getLocation());
@@ -72,14 +81,17 @@ public class ParkingService {
         p.setCovered(req.isCovered());
         p.setActive(req.isActive());
 
-        // --- UPDATE AVAILABILITY LOGIC ---
-        // 1. Clear existing items (Orphan Removal will delete them from DB)
-        if (p.getAvailabilityList() != null) {
-            p.getAvailabilityList().clear();
+// --- UPDATE AVAILABILITY LOGIC ---
+// Only overwrite availability if the client explicitly sent availabilityType.
+// (Quick edits from ManageSpots should NOT include availabilityType.)
+        if (req.getAvailabilityType() != null) {
+            p.getAvailabilityList().clear(); // orphanRemoval deletes rows
+            handleAvailability(p,
+                    req.getAvailabilityType(),
+                    req.getSpecificAvailability(),
+                    req.getRecurringSchedule());
         }
 
-        // 2. Add new items
-        handleAvailability(p, req.getAvailabilityType(), req.getSpecificAvailability(), req.getRecurringSchedule());
 
         Parking saved = parkingRepository.save(p);
         log.info("action=parking_update_service success ownerId={} parkingId={}", ownerId, saved.getId());
