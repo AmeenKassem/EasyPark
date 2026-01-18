@@ -64,12 +64,12 @@ public class ParkingService {
             throw new AccessDeniedException("You are not the owner of this parking spot");
         }
 // Block updates only if there is an APPROVED booking that has not ended yet
-        if (bookingRepository.existsApprovedNotEndedForParking(parkingId, LocalDateTime.now())) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Cannot update spot: there is an approved booking that has not ended yet."
-            );
-        }
+//        if (bookingRepository.existsApprovedNotEndedForParking(parkingId, LocalDateTime.now())) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.CONFLICT,
+//                    "Cannot update spot: there is an approved booking that has not ended yet."
+//            );
+//        }
 
 
 
