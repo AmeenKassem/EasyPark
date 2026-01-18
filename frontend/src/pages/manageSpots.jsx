@@ -80,19 +80,19 @@ export default function ManageSpotsPage() {
     const [editAvailabilitySpot, setEditAvailabilitySpot] = useState(null)
 
     const activeCount = useMemo(() => spots.filter((s) => !!s.active).length, [spots])
-    const lockedSpotIds = useMemo(() => {
-        const now = Date.now()
-
-        return new Set(
-            bookings
-                .filter((b) => String(b.status || '').toUpperCase() === 'APPROVED')
-                .filter((b) => {
-                    const end = b?.endTime ? new Date(b.endTime).getTime() : NaN
-                    return Number.isFinite(end) && end > now
-                })
-                .map((b) => b.parkingId)
-        )
-    }, [bookings])
+    // const lockedSpotIds = useMemo(() => {
+    //     const now = Date.now()
+    //
+    //     return new Set(
+    //         bookings
+    //             .filter((b) => String(b.status || '').toUpperCase() === 'APPROVED')
+    //             .filter((b) => {
+    //                 const end = b?.endTime ? new Date(b.endTime).getTime() : NaN
+    //                 return Number.isFinite(end) && end > now
+    //             })
+    //             .map((b) => b.parkingId)
+    //     )
+    // }, [bookings])
 
 
     const totalEarnings = 0 // Placeholder logic
@@ -180,10 +180,10 @@ export default function ManageSpotsPage() {
     }, [])
 
     const openEditFor = (spot) => {
-        if (lockedSpotIds.has(spot.id)) {
-            setError('This spot has an APPROVED booking and cannot be updated.')
-            return
-        }
+        // if (lockedSpotIds.has(spot.id)) {
+        //     setError('This spot has an APPROVED booking and cannot be updated.')
+        //     return
+        // }
 
         setEditError('')
         setEditSpot(spot)
@@ -196,10 +196,10 @@ export default function ManageSpotsPage() {
     }
     const openEditAvailabilityFor = (spot) => {
         setError('')
-        if (lockedSpotIds.has(spot.id)) {
-            setError('This spot has an APPROVED booking and cannot be updated.')
-            return
-        }
+        // if (lockedSpotIds.has(spot.id)) {
+        //     setError('This spot has an APPROVED booking and cannot be updated.')
+        //     return
+        // }
         setEditAvailabilitySpot(spot)
         setEditAvailabilityOpen(true)
     }
@@ -240,10 +240,10 @@ export default function ManageSpotsPage() {
     }
 
     const toggleActive = async (spot) => {
-        if (lockedSpotIds.has(spot.id)) {
-            setError('This spot has an APPROVED booking and cannot be updated.')
-            return
-        }
+        // if (lockedSpotIds.has(spot.id)) {
+        //     setError('This spot has an APPROVED booking and cannot be updated.')
+        //     return
+        // }
 
         setError('')
         try {
@@ -421,7 +421,7 @@ export default function ManageSpotsPage() {
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '20px' }}>
                                 {spots.map((spot) => {
-                                    const locked = lockedSpotIds.has(spot.id)
+                                    const locked = false//lockedSpotIds.has(spot.id)
 
                                     const title = spot.location?.toString().split(',')[0]?.trim() || 'Parking Spot'
                                     const fullAddress = spot.location || ''
