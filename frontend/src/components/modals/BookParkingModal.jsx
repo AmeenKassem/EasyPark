@@ -319,7 +319,10 @@ function TimeRangeSlider({
         </div>
     )
 }
-
+const ymdToLocalDate = (ymd) => {
+    const [y, m, d] = String(ymd).split('-').map(Number);
+    return new Date(y, m - 1, d); // local midnight
+};
 export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     if (!isOpen || !spot) return null
 
@@ -344,27 +347,43 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
     const [busyLoading, setBusyLoading] = useState(false)
 
     // ---------- Availability normalization ----------
+    const normalizeBackendDayToJs = (d) => {
+        const n = Number(d);
+
+        // Case A: backend already uses JS 0..6
+        if (n >= 0 && n <= 6) return n;
+
+        // Case B: backend uses Java DayOfWeek 1..7 (Mon..Sun)
+        if (n >= 1 && n <= 7) return n === 7 ? 0 : n; // 7->0(Sun), 1->1(Mon), ... 6->6(Sat)
+
+        // Unknown -> return null so it never matches
+        return null;
+    };
+
     const normalizedAvailabilityList = useMemo(() => {
-        if (!spot) return []
-        const type = String(spot.availabilityType || '').toUpperCase()
+        if (!spot) return [];
+        const type = String(spot.availabilityType || '').toUpperCase();
 
         if (type === 'RECURRING' && Array.isArray(spot.recurringSchedule)) {
-            return spot.recurringSchedule.map((r) => ({
-                dayOfWeek: r.dayOfWeek,
-                startTime: r.start,
-                endTime: r.end,
-            }))
+            return spot.recurringSchedule
+                .map(r => ({
+                    dayOfWeek: normalizeBackendDayToJs(r.dayOfWeek),
+                    startTime: r.start,
+                    endTime: r.end,
+                }))
+                .filter(r => r.dayOfWeek !== null);
         }
 
         if (type === 'SPECIFIC' && Array.isArray(spot.specificAvailability)) {
-            return spot.specificAvailability.map((r) => ({
+            return spot.specificAvailability.map(r => ({
                 startDateTime: r.start,
                 endDateTime: r.end,
-            }))
+            }));
         }
 
-        return []
-    }, [spot])
+        return [];
+    }, [spot]);
+
 
     const isSelectableDate = useCallback(
         (date) => {
@@ -374,14 +393,10 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
             if (!normalizedAvailabilityList || normalizedAvailabilityList.length === 0) return true
 
             if (type === 'RECURRING') {
-                const jsDay = date.getDay()
-                const alt1 = jsDay === 0 ? 7 : jsDay
-                const alt2 = jsDay === 0 ? 1 : jsDay + 1
-                return normalizedAvailabilityList.some((r) => {
-                    const d = r.dayOfWeek
-                    return d === jsDay || d === alt1 || d === alt2
-                })
+                const jsDay = date.getDay(); // 0..6
+                return normalizedAvailabilityList.some(r => r.dayOfWeek === jsDay);
             }
+
 
             if (type === 'SPECIFIC') {
                 const targetYMD = toYMD(date)
@@ -409,23 +424,16 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
             }
 
             if (type === 'RECURRING') {
-                const jsDay = new Date(dateStr).getDay()
-                const alt1 = jsDay === 0 ? 7 : jsDay
-                const alt2 = jsDay === 0 ? 1 : jsDay + 1
+                const jsDay = ymdToLocalDate(dateStr).getDay(); // safer than new Date(dateStr)
+                const rule = normalizedAvailabilityList.find(r => r.dayOfWeek === jsDay);
+                if (!rule) return null;
 
-                const rule = normalizedAvailabilityList.find((r) => {
-                    const d = r.dayOfWeek
-                    return d === jsDay || d === alt1 || d === alt2
-                })
-
-                if (rule?.startTime && rule?.endTime) {
-                    return {
-                        start: String(rule.startTime).substring(0, 5),
-                        end: String(rule.endTime).substring(0, 5),
-                    }
-                }
-                return { start: '00:00', end: '24:00' }
+                return {
+                    start: String(rule.startTime).substring(0, 5),
+                    end: String(rule.endTime).substring(0, 5),
+                };
             }
+
 
             if (type === 'SPECIFIC') {
                 const targetDate = new Date(dateStr + 'T00:00:00')
