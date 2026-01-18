@@ -156,8 +156,12 @@ export default function MyBookingsPage() {
                                     </div>
 
                                     <div style={{ color: '#334155', fontWeight: 700 }}>
-                                        Parking ID: {b.parkingId}
+                                        Parking: {b.parkingLocation || '—'}
+                                        <span style={{ marginLeft: 8, color: '#64748b', fontWeight: 600, fontSize: 12 }}>
+        (ID: {b.parkingId})
+    </span>
                                     </div>
+
 
                                     <div style={{ color: '#334155' }}>
                                         <strong>Start:</strong> {fmt(b.startTime)} &nbsp;&nbsp;

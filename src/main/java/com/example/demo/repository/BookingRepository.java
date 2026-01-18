@@ -73,5 +73,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                @Param("from") LocalDateTime from,
                                @Param("to") LocalDateTime to,
                                @Param("activeStatuses") Collection<BookingStatus> activeStatuses);
+    @Query("""
+       select count(b) > 0 from Booking b
+       where b.parking.id = :parkingId
+         and b.status = com.example.demo.model.BookingStatus.APPROVED
+         and b.endTime > :now
+       """)
+    boolean existsApprovedNotEndedForParking(@Param("parkingId") Long parkingId,
+                                             @Param("now") LocalDateTime now);
+
 
 }
