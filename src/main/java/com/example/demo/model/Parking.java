@@ -1,8 +1,10 @@
 package com.example.demo.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "parkings")
@@ -12,30 +14,33 @@ public class Parking {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Owner user id (from JWT principal)
     @Column(nullable = false)
     private Long ownerId;
 
     @Column(nullable = false, length = 256)
-    private String location; // address / description
+    private String location;
 
-    // Optional for Phase A
     private Double lat;
     private Double lng;
 
     @Column(nullable = false)
     private double pricePerHour;
 
-    // "type" in your old file becomes a real field
     @Column(nullable = false)
     private boolean covered;
 
-    // Simple availability window (optional for now)
-    private LocalDateTime availableFrom;
-    private LocalDateTime availableTo;
-
     @Column(nullable = false)
     private boolean active = true;
+
+
+    @Enumerated(EnumType.STRING)
+    private AvailabilityType availabilityType; // SPECIFIC or RECURRING
+
+    @OneToMany(mappedBy = "parking", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<ParkingAvailability> availabilityList = new ArrayList<>();
+
+
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -57,35 +62,38 @@ public class Parking {
         updatedAt = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
 
+    public AvailabilityType getAvailabilityType() { return availabilityType; }
+    public void setAvailabilityType(AvailabilityType availabilityType) { this.availabilityType = availabilityType; }
+
+    public List<ParkingAvailability> getAvailabilityList() { return availabilityList; }
+    public void setAvailabilityList(List<ParkingAvailability> availabilityList) {
+        this.availabilityList = availabilityList;
+    }
+
+    // Add helper method to manage bidirectional relationship
+    public void addAvailability(ParkingAvailability pa) {
+        availabilityList.add(pa);
+        pa.setParking(this);
+    }
+
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Long getOwnerId() { return ownerId; }
     public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
-
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
-
     public Double getLat() { return lat; }
     public void setLat(Double lat) { this.lat = lat; }
-
     public Double getLng() { return lng; }
     public void setLng(Double lng) { this.lng = lng; }
-
     public double getPricePerHour() { return pricePerHour; }
     public void setPricePerHour(double pricePerHour) { this.pricePerHour = pricePerHour; }
-
     public boolean isCovered() { return covered; }
     public void setCovered(boolean covered) { this.covered = covered; }
-
-    public LocalDateTime getAvailableFrom() { return availableFrom; }
-    public void setAvailableFrom(LocalDateTime availableFrom) { this.availableFrom = availableFrom; }
-
-    public LocalDateTime getAvailableTo() { return availableTo; }
-    public void setAvailableTo(LocalDateTime availableTo) { this.availableTo = availableTo; }
-
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
-
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

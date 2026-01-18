@@ -2,8 +2,9 @@ package com.example.demo.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
-
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 public class UpdateParkingRequest {
 
@@ -17,33 +18,31 @@ public class UpdateParkingRequest {
     private double pricePerHour;
 
     private boolean covered;
-
-    private LocalDateTime availableFrom;
-    private LocalDateTime availableTo;
-
     private boolean active = true;
+    private String availabilityType; // "SPECIFIC" or "RECURRING"
+    private List<CreateParkingRequest.SpecificSlotDto> specificAvailability;
+    private List<CreateParkingRequest.RecurringScheduleDto> recurringSchedule;
 
+    // Getters and Setters
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
-
     public Double getLat() { return lat; }
     public void setLat(Double lat) { this.lat = lat; }
-
     public Double getLng() { return lng; }
     public void setLng(Double lng) { this.lng = lng; }
-
     public double getPricePerHour() { return pricePerHour; }
     public void setPricePerHour(double pricePerHour) { this.pricePerHour = pricePerHour; }
-
     public boolean isCovered() { return covered; }
     public void setCovered(boolean covered) { this.covered = covered; }
-
-    public LocalDateTime getAvailableFrom() { return availableFrom; }
-    public void setAvailableFrom(LocalDateTime availableFrom) { this.availableFrom = availableFrom; }
-
-    public LocalDateTime getAvailableTo() { return availableTo; }
-    public void setAvailableTo(LocalDateTime availableTo) { this.availableTo = availableTo; }
-
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getAvailabilityType() { return availabilityType; }
+    public void setAvailabilityType(String availabilityType) { this.availabilityType = availabilityType; }
+
+    public List<CreateParkingRequest.SpecificSlotDto> getSpecificAvailability() { return specificAvailability; }
+    public void setSpecificAvailability(List<CreateParkingRequest.SpecificSlotDto> specificAvailability) { this.specificAvailability = specificAvailability; }
+
+    public List<CreateParkingRequest.RecurringScheduleDto> getRecurringSchedule() { return recurringSchedule; }
+    public void setRecurringSchedule(List<CreateParkingRequest.RecurringScheduleDto> recurringSchedule) { this.recurringSchedule = recurringSchedule; }
 }

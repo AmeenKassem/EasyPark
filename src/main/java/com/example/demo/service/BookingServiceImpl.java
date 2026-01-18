@@ -2,10 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.CreateBookingRequest;
 import com.example.demo.dto.UpdateBookingStatusRequest;
-import com.example.demo.model.Booking;
-import com.example.demo.model.BookingStatus;
-import com.example.demo.model.Parking;
-import com.example.demo.model.User;
+import com.example.demo.model.*;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
 import com.example.demo.repository.UserRepository;
@@ -15,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -49,23 +47,17 @@ public class BookingServiceImpl implements BookingService {
         Parking parking = parkingRepository.findById(req.getParkingId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
 
-        // Ensure parking spot is active (adjust method/field name if different in your Parking model)
         if (!parking.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking spot is not active");
         }
-        // Prevent self-booking (driver cannot book their own parking spot)
+
         if (parking.getOwnerId() != null && parking.getOwnerId().equals(driverId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot book your own parking spot");
         }
 
-        // Enforce owner's availability window (if defined)
-        if (parking.getAvailableFrom() != null && req.getStartTime().isBefore(parking.getAvailableFrom())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start time is before the parking availability window");
-        }
-        if (parking.getAvailableTo() != null && req.getEndTime().isAfter(parking.getAvailableTo())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End time is after the parking availability window");
-        }
-
+        // --- NEW: Validate against complex availability ---
+        validateParkingAvailability(parking, req.getStartTime(), req.getEndTime());
+        // --------------------------------------------------
 
         User driver = userRepository.findById(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Driver not found"));
@@ -88,10 +80,69 @@ public class BookingServiceImpl implements BookingService {
         booking.setEndTime(req.getEndTime());
         booking.setStatus(BookingStatus.PENDING);
 
-        // Calculate total price (adjust getters if your Parking model differs)
         booking.setTotalPrice(calculateTotalPrice(parking, req.getStartTime(), req.getEndTime()));
 
         return bookingRepository.save(booking);
+    }
+
+    // --- Helper Method to Validate Availability ---
+    private void validateParkingAvailability(Parking parking, LocalDateTime start, LocalDateTime end) {
+        if (parking.getAvailabilityList() == null || parking.getAvailabilityList().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking availability configuration is missing.");
+        }
+
+        boolean isWithinSlot = false;
+        String reason = "Time outside available slots.";
+
+        if (parking.getAvailabilityType() == AvailabilityType.SPECIFIC) {
+            for (ParkingAvailability slot : parking.getAvailabilityList()) {
+                if (slot.getStartDateTime() != null && slot.getEndDateTime() != null) {
+                    if (!start.isBefore(slot.getStartDateTime()) && !end.isAfter(slot.getEndDateTime())) {
+                        isWithinSlot = true;
+                        break;
+                    }
+                }
+            }
+            if (!isWithinSlot) {
+                reason = "Selected date is outside the specific availability range.";
+            }
+
+        } else if (parking.getAvailabilityType() == AvailabilityType.RECURRING) {
+            // Convert Java DayOfWeek (1=Mon..7=Sun) to DB logic (0=Sun..6=Sat)
+            int javaDay = start.getDayOfWeek().getValue();
+            int dbDay = (javaDay == 7) ? 0 : javaDay; // Adjust if your DB uses 1=Sun
+
+            // Check if start and end are on the same day
+            if (!start.toLocalDate().isEqual(end.toLocalDate())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking cannot span multiple days for recurring parking.");
+            }
+
+            LocalTime reqStart = start.toLocalTime();
+            LocalTime reqEnd = end.toLocalTime();
+            boolean dayFound = false;
+
+            for (ParkingAvailability slot : parking.getAvailabilityList()) {
+                if (slot.getDayOfWeek() != null && slot.getDayOfWeek() == dbDay) {
+                    dayFound = true;
+                    if (slot.getStartTime() != null && slot.getEndTime() != null) {
+                        if (!reqStart.isBefore(slot.getStartTime()) && !reqEnd.isAfter(slot.getEndTime())) {
+                            isWithinSlot = true;
+                            break;
+                        } else {
+                            reason = String.format("On %s, parking is only available between %s and %s.",
+                                    start.getDayOfWeek(), slot.getStartTime(), slot.getEndTime());
+                        }
+                    }
+                }
+            }
+            if (!dayFound) {
+                reason = "Parking is closed on " + start.getDayOfWeek() + ".";
+            }
+        }
+
+        if (!isWithinSlot) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
+        }
     }
 
     @Override
@@ -109,7 +160,6 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
 
-        // Ensure the booking belongs to an owner parking spot (adjust owner getter if needed)
         Long bookingOwnerId = booking.getParking().getOwnerId();
         if (!ownerId.equals(bookingOwnerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to update this booking");
@@ -138,10 +188,9 @@ public class BookingServiceImpl implements BookingService {
         }
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.REJECTED) {
-            return booking; // already effectively inactive
+            return booking;
         }
 
-        // Simple rule: cannot cancel after start time
         if (!LocalDateTime.now().isBefore(booking.getStartTime())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot cancel after booking has started");
         }
@@ -162,13 +211,10 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private double calculateTotalPrice(Parking parking, LocalDateTime start, LocalDateTime end) {
-        // This is a simple pricing method: hours rounded up * pricePerHour
-        // Adjust to your business rules as needed.
-        double pricePerHour = parking.getPricePerHour(); // adjust if your field name differs
-
+        double pricePerHour = parking.getPricePerHour();
         long minutes = Duration.between(start, end).toMinutes();
-        long hoursRoundedUp = (minutes + 59) / 60;
-
-        return hoursRoundedUp * pricePerHour;
+        double hoursExact = minutes / 60.0; // Must use 60.0 to force double division
+        double calculatedPrice = hoursExact * pricePerHour;
+        return Math.round(calculatedPrice * 100.0) / 100.0;
     }
 }

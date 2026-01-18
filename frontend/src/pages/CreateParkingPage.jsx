@@ -1,281 +1,504 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
-function normalizeLocalDateTime(v) {
-    if (!v) return null;
-    return v.length === 16 ? `${v}:00` : v; // "YYYY-MM-DDTHH:mm" -> add ":00"
-}
+
+// --- HELPER: Generate Time Slots ---
+const generateTimeOptions = (stepMinutes = 30) => {
+    const times = [];
+    for (let i = 0; i < 24 * 60; i += stepMinutes) {
+        const hours = Math.floor(i / 60);
+        const mins = i % 60;
+        const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        times.push(formatted);
+    }
+    times.push('23:59'); // Add End-of-Day
+    return times;
+};
+const toYMD = (d) => {
+    if (!d) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
 
 const CreateParkingPage = ({ onClose, onCreated }) => {
 
+  // --- STATE ---
   const [formData, setFormData] = useState({
     location: '',
     lat: null,
     lng: null,
     pricePerHour: '',
     covered: false,
-    availableFrom: '',
-    availableTo: ''
   });
 
+  const [availabilityType, setAvailabilityType] = useState('specific');
+
+  // CHANGE: Initialize with empty strings to force user selection
+  const [specificSlots, setSpecificSlots] = useState([
+      { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }
+  ]);
+
+  // CHANGE: Initialize recurring times with empty strings
+  const [weeklySchedule, setWeeklySchedule] = useState({
+      0: { active: false, start: '', end: '' },
+      1: { active: false, start: '', end: '' },
+      2: { active: false, start: '', end: '' },
+      3: { active: false, start: '', end: '' },
+      4: { active: false, start: '', end: '' },
+      5: { active: false, start: '', end: '' },
+      6: { active: false, start: '', end: '' },
+  });
+
+  // CHANGE: Initialize batch times with empty strings
+  const [batchTime, setBatchTime] = useState({ start: '', end: '' });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [apiMessage, setApiMessage] = useState('');
 
-  // --- UPDATED HANDLER: Validates Street Number ---
+  const timeOptions = useMemo(() => generateTimeOptions(30), []);
+
+  // --- HELPER: Get Current Time HH:MM ---
+  const getCurrentTimeHHMM = () => {
+      const now = new Date();
+      return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  };
+
+  // --- VALIDATION LOGIC ---
+  const validationErrors = useMemo(() => {
+      const errors = [];
+      if (!formData.lat || !formData.lng) errors.push("Please select a precise location from the list.");
+      if (!formData.pricePerHour || parseFloat(formData.pricePerHour) <= 0) errors.push("Price per hour must be greater than 0.");
+
+      if (availabilityType === 'specific') {
+          const invalidSlots = specificSlots.some(s => !s.startDate || !s.endDate || !s.startTime || !s.endTime);
+          if (invalidSlots) errors.push("Please complete all start and end dates/times.");
+      } else {
+          const activeDays = Object.values(weeklySchedule).filter(d => d.active);
+          if (activeDays.length === 0) {
+              errors.push("Please select at least one active day.");
+          } else if (activeDays.some(d => !d.start || !d.end)) {
+              errors.push("Please set start and end times for all selected days.");
+          }
+      }
+      return errors;
+  }, [formData, availabilityType, specificSlots, weeklySchedule]);
+
+  // --- TIME FILTERS FOR UI ---
+  const getStartOptions = () => timeOptions.filter(t => t !== '23:59');
+
+  const getValidStartTimes = (selectedDate) => {
+      let options = getStartOptions();
+      if (!selectedDate) return options;
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (selectedDate === todayStr) {
+          const currentHm = getCurrentTimeHHMM();
+          return options.filter(t => t > currentHm);
+      }
+      return options;
+  };
+
+  const getValidEndTimes = (startDate, endDate, startTime) => {
+      if (startDate && endDate && startDate === endDate) {
+          return timeOptions.filter(t => t > startTime);
+      }
+      return timeOptions;
+  };
+
+  const getValidRecurringEndTimes = (startTime) => {
+      if (!startTime) return timeOptions;
+      return timeOptions.filter(t => t > startTime);
+  };
+
+  // --- HANDLERS ---
   const handleAddressSelect = ({ lat, lng, address, address_components }) => {
-    setMessage('');
-
-    // Check if the address has a street number
+    setApiMessage('');
     if (address_components) {
-        const hasStreetNumber = address_components.some(component =>
-            component.types.includes('street_number')
-        );
-
+        const hasStreetNumber = address_components.some(component => component.types.includes('street_number'));
         if (!hasStreetNumber) {
-            setMessage('⚠️ Please select a precise address that includes a street number.');
-            // Invalid address: Keep text but reset coordinates so form cannot be submitted
-            setFormData(prev => ({
-                ...prev,
-                lat: null,
-                lng: null,
-                location: address
-            }));
+            setApiMessage('⚠️ Please select a precise address that includes a street number.');
+            setFormData(prev => ({ ...prev, lat: null, lng: null, location: address }));
             return;
         }
     }
-
-    // Valid address
-    setFormData(prev => ({
-      ...prev,
-      lat,
-      lng,
-      location: address
-    }));
+    setFormData(prev => ({ ...prev, lat, lng, location: address }));
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const addSpecificSlot = () => {
+      // CHANGE: Add new slot with empty times
+      setSpecificSlots(prev => [...prev, { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]);
+  };
+
+  const removeSpecificSlot = (id) => {
+      if (specificSlots.length === 1) return;
+      setSpecificSlots(prev => prev.filter(slot => slot.id !== id));
+  };
+
+  // --- STRICT SANITIZATION UPDATE ---
+  const updateSpecificSlot = (id, field, value) => {
+      setSpecificSlots(prev => prev.map(slot => {
+          if (slot.id !== id) return slot;
+
+          const newSlot = { ...slot, [field]: value };
+          const todayStr = new Date().toISOString().split('T')[0];
+          const currentTime = getCurrentTimeHHMM();
+
+          // 2. Sanitize START TIME (vs Today)
+          if (newSlot.startDate === todayStr && newSlot.startTime) {
+              if (newSlot.startTime <= currentTime) {
+                  newSlot.startTime = '';
+              }
+          }
+
+          // 3. Sanitize END DATE (vs Start Date)
+          if (newSlot.startDate && newSlot.endDate) {
+              if (newSlot.endDate < newSlot.startDate) {
+                  newSlot.endDate = '';
+                  newSlot.endTime = '';
+              }
+          }
+
+          // 4. Sanitize END TIME (vs Start Time on same day)
+          if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
+              if (newSlot.startTime && newSlot.endTime) {
+                  if (newSlot.endTime <= newSlot.startTime) {
+                      newSlot.endTime = '';
+                  }
+              }
+          }
+
+          return newSlot;
+      }));
+  };
+
+  const toggleDay = (dayIndex) => {
+      setWeeklySchedule(prev => ({ ...prev, [dayIndex]: { ...prev[dayIndex], active: !prev[dayIndex].active } }));
+  };
+
+  const updateDayTime = (dayIndex, field, value) => {
+      setWeeklySchedule(prev => {
+          const newData = { ...prev[dayIndex], [field]: value };
+          if (field === 'start' && newData.end && value >= newData.end) {
+             newData.end = '';
+          }
+          return { ...prev, [dayIndex]: newData };
+      });
+  };
+
+  const handleBatchTimeChange = (field, value) => {
+      setBatchTime(prev => {
+          const newState = { ...prev, [field]: value };
+          if (field === 'start' && newState.end && value >= newState.end) {
+              newState.end = '';
+          }
+          return newState;
+      });
+  };
+
+  const applyBatchTime = () => {
+      if (!batchTime.start || !batchTime.end) {
+          setApiMessage('Please select valid Quick Apply times first.');
+          return;
+      }
+      setWeeklySchedule(prev => {
+          const newState = { ...prev };
+          Object.keys(newState).forEach(key => {
+              if (newState[key].active) {
+                  newState[key].start = batchTime.start;
+                  newState[key].end = batchTime.end;
+              }
+          });
+          return newState;
+      });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage('');
+    if (validationErrors.length > 0) return;
 
-    // 1. Validate coordinates
-    if (formData.lat == null || formData.lng == null) {
-      setMessage('Please select a valid address from the list.');
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setApiMessage('');
 
     try {
       const token = localStorage.getItem('easypark_token');
       if (!token) {
-        setMessage('You must be logged in to create a parking spot.');
+        setApiMessage('You must be logged in to create a parking spot.');
         setLoading(false);
         return;
       }
 
-      const payload = {
+      let payload = {
         location: formData.location,
         lat: formData.lat,
         lng: formData.lng,
         pricePerHour: parseFloat(formData.pricePerHour),
         covered: formData.covered,
-        availableFrom: normalizeLocalDateTime(formData.availableFrom),
-        availableTo: normalizeLocalDateTime(formData.availableTo)
+        availabilityType: availabilityType.toUpperCase()
       };
 
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+      if (availabilityType === 'specific') {
+          const formattedSlots = specificSlots.map(slot => ({
+              start: `${slot.startDate}T${slot.startTime}:00`,
+              end: `${slot.endDate}T${slot.endTime}:00`
+          }));
+          payload.specificAvailability = formattedSlots;
+      } else {
+          const scheduleList = Object.keys(weeklySchedule)
+              .map(key => ({ dayOfWeek: parseInt(key), ...weeklySchedule[key] }))
+              .filter(day => day.active);
+          payload.recurringSchedule = scheduleList;
+      }
 
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
       await axios.post(`${API_BASE}/api/parking-spots`, payload, {
-          headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
 
-      setMessage('Success! Parking spot created.');
-      setTimeout(() => {
-          onCreated?.();
-          onClose?.();
-      }, 700);
+      setApiMessage('Success! Parking spot created.');
+      setTimeout(() => { onCreated?.(); onClose?.(); }, 700);
 
     } catch (error) {
-        console.error("Create parking error:", error);
-        const status = error?.response?.status;
-        const apiMsg = error?.response?.data?.message || error?.response?.data?.error || null;
-
-        if (status === 401) {
-            setMessage('You are not logged in. Please login again.');
-        } else if (status === 403) {
-            setMessage('Permission denied. You must have OWNER role.');
-        } else if (status === 400) {
-            setMessage(apiMsg ? `Validation error: ${apiMsg}` : 'Validation error.');
-        } else {
-            setMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
-        }
+        const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
+        setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-      <div
-          style={{
-              maxWidth: '600px',
-              margin: '40px auto',
-              padding: '24px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              borderRadius: '12px',
-              backgroundColor: '#fff',
-              color: '#0f172a',
-          }}
-      >
+  const daysLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const daysFullNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-      <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>List Your Parking Spot</h2>
+  return (
+      <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+          <style>{`
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* Match booking calendar look */
+  .ep-date-wrap { width: 100%; }
+  .ep-date-picker {
+    width: 100%;
+    height: 38px;               /* matches your current compact slot row */
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    outline: none;
+    color: #1e293b;
+    font-family: inherit;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .ep-date-picker:focus {
+    border-color: #94a3b8;
+  }
+
+  /* Optional: make the popup look cleaner */
+  .react-datepicker {
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+  .react-datepicker__header {
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+  }
+`}</style>
+
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+          <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>Add New Spot</h2>
+          <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+      </div>
 
       <form onSubmit={handleSubmit}>
-
-        {/* Updated: Passing strict options for Israel & Address type */}
-        <AddressAutocomplete
-            onAddressSelect={handleAddressSelect}
-            options={{
-                types: ['address'],
-                componentRestrictions: { country: "il" }
-            }}
-        />
-
-        {/* Success Feedback */}
-        {formData.location && formData.lat && (
-          <div style={{ marginBottom: '15px', fontSize: '14px', color: '#28a745' }}>
-            ✓ Selected: {formData.location}
-          </div>
-        )}
-
-        {/* Error Feedback for imprecise address */}
-        {message && message.includes('precise address') && (
-             <div style={{ marginBottom: '15px', fontSize: '14px', color: '#dc3545', fontWeight: 'bold' }}>
-                 {message}
-             </div>
-        )}
-
         <div style={groupStyle}>
-          <label style={labelStyle}>Price per Hour (₪)</label>
-          <input
-            type="number"
-            name="pricePerHour"
-            value={formData.pricePerHour}
-            onChange={handleChange}
-            required
-            min="0"
-            step="0.5"
-            placeholder="e.g. 15.0"
-            style={inputStyle}
-          />
+            <label style={labelStyle}>Location</label>
+            <AddressAutocomplete onAddressSelect={handleAddressSelect} options={{ types: ['address'], componentRestrictions: { country: "il" } }} />
+            {formData.location && formData.lat && <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}><span>📍</span> {formData.location}</div>}
+            {apiMessage && apiMessage.includes('precise') && <div style={{ marginTop: '5px', fontSize: '13px', color: '#ef4444', fontWeight: 'bold' }}>{apiMessage}</div>}
         </div>
 
-        <div style={{ ...groupStyle, flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
-          <input
-            type="checkbox"
-            name="covered"
-            checked={formData.covered}
-            onChange={handleChange}
-            style={{ width: '20px', height: '20px' }}
-          />
-          <label>Is the parking covered?</label>
-        </div>
-
-        <div style={{ display: 'flex', gap: '15px' }}>
-            <div style={{ ...groupStyle, flex: 1 }}>
-            <label style={labelStyle}>Available From</label>
-            <input
-                type="datetime-local"
-                name="availableFrom"
-                value={formData.availableFrom}
-                onChange={handleChange}
-                style={inputStyle}
-            />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
+            <div style={groupStyle}>
+                <label style={labelStyle}>Price / Hour</label>
+                <div style={{...inputWrapperStyle, padding: '0 8px'}}>
+                    <button type="button" onClick={() => { const newVal = parseFloat(formData.pricePerHour || 0) - 0.5; if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>−</button>
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px' }}>
+                        <input type="number" name="pricePerHour" value={formData.pricePerHour} onChange={handleChange} placeholder="0" style={{ ...inputStyle, border: 'none', textAlign: 'right', fontSize: '18px', fontWeight: 'bold', width: '45px', padding: 0, backgroundColor: 'transparent' }} />
+                        <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#64748b' }}>₪</span>
+                    </div>
+                    <button type="button" onClick={() => { const newVal = (parseFloat(formData.pricePerHour) || 0) + 0.5; handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>+</button>
+                </div>
             </div>
-
-            <div style={{ ...groupStyle, flex: 1 }}>
-            <label style={labelStyle}>Available To</label>
-            <input
-                type="datetime-local"
-                name="availableTo"
-                value={formData.availableTo}
-                onChange={handleChange}
-                style={inputStyle}
-            />
+            <div style={groupStyle}>
+                <label style={labelStyle}>Features</label>
+                <div onClick={() => setFormData(prev => ({ ...prev, covered: !prev.covered }))} style={{ ...inputWrapperStyle, justifyContent: 'space-between', padding: '0 15px', cursor: 'pointer', borderColor: formData.covered ? '#3b82f6' : '#e2e8f0', backgroundColor: formData.covered ? '#eff6ff' : '#fff' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: formData.covered ? '#1d4ed8' : '#64748b' }}>Covered</span>
+                    <div style={{ width: '36px', height: '20px', backgroundColor: formData.covered ? '#3b82f6' : '#cbd5e1', borderRadius: '20px', position: 'relative', transition: 'all 0.2s' }}>
+                        <div style={{ width: '16px', height: '16px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: formData.covered ? '18px' : '2px', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+                    </div>
+                </div>
             </div>
         </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button
-                  type="button"
-                  onClick={() => onClose?.()}
-                  disabled={loading}
-                  style={{
-                      flex: 1,
-                      padding: '14px',
-                      backgroundColor: '#f3f4f6',
-                      color: '#111827',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      cursor: loading ? 'not-allowed' : 'pointer',
-                      opacity: loading ? 0.7 : 1,
-                  }}
-              >
-                  Cancel
-              </button>
+        <div style={{ backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '12px', display: 'flex', marginBottom: '24px' }}>
+            <button type="button" onClick={() => setAvailabilityType('specific')} style={availabilityType === 'specific' ? activeTabStyle : inactiveTabStyle}>Specific Dates</button>
+            <button type="button" onClick={() => setAvailabilityType('recurring')} style={availabilityType === 'recurring' ? activeTabStyle : inactiveTabStyle}>Weekly Schedule</button>
+        </div>
 
-              <button
-                  type="submit"
-                  disabled={loading || !formData.lat}
-                  style={{
-                      flex: 1,
-                      padding: '14px',
-                      backgroundColor: (loading || !formData.lat) ? '#9ca3af' : '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      cursor: (loading || !formData.lat) ? 'not-allowed' : 'pointer',
-                      opacity: (loading || !formData.lat) ? 0.7 : 1,
-                  }}
-              >
-                  {loading ? 'Processing...' : 'Create Parking Spot'}
-              </button>
-          </div>
+        {/* Specific Dates Logic */}
+        {availabilityType === 'specific' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                 <div style={{fontSize: '13px', color: '#64748b', marginBottom: '5px'}}>Set the start and end time for when the parking is available.</div>
+                 {specificSlots.map((slot) => {
+                     const validEndTimes = getValidEndTimes(slot.startDate, slot.endDate, slot.startTime);
+                     const isCurrentEndTimeValid = !slot.endTime || validEndTimes.includes(slot.endTime);
+                     const displayEndTime = isCurrentEndTimeValid ? slot.endTime : '';
 
-        {message && !message.includes('precise address') && (
-          <div style={{
-            marginTop: '20px',
-            padding: '12px',
-            textAlign: 'center',
-            borderRadius: '6px',
-            backgroundColor: message.includes('Success') ? '#d4edda' : '#f8d7da',
-            color: message.includes('Success') ? '#155724' : '#721c24',
-          }}>
-            {message}
-          </div>
+                     return (
+                     <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                         <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                             <span style={{...subLabelStyle, color: '#166534'}}>FROM (Start)</span>
+                             <DatePicker
+                                 selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
+                                 onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
+                                 minDate={new Date()}
+                                 dateFormat="MM/dd/yyyy"
+                                 placeholderText="Select date"
+                                 className="ep-date-picker"
+                                 wrapperClassName="ep-date-wrap"
+                             />
+
+                             <select value={slot.startTime} onChange={(e) => updateSpecificSlot(slot.id, 'startTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
+                                <option value="" disabled>--:--</option>
+                                {getValidStartTimes(slot.startDate).map(t => <option key={t} value={t}>{t}</option>)}
+                             </select>
+                         </div>
+                         <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
+                         <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                             <span style={{...subLabelStyle, color: '#991b1b'}}>TO (End)</span>
+                             <DatePicker
+                                 selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
+                                 onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
+                                 minDate={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : new Date()}
+                                 dateFormat="MM/dd/yyyy"
+                                 placeholderText="Select date"
+                                 className="ep-date-picker"
+                                 wrapperClassName="ep-date-wrap"
+                             />
+
+                             <select value={displayEndTime} onChange={(e) => updateSpecificSlot(slot.id, 'endTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
+                                <option value="" disabled>--:--</option>
+                                {validEndTimes.map(t => <option key={t} value={t}>{t}</option>)}
+                             </select>
+                         </div>
+                         {specificSlots.length > 1 && <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>&times;</button>}
+                     </div>
+                 );
+                 })}
+                 <button type="button" onClick={addSpecificSlot} style={addBtnStyle}>+ Add Another Range</button>
+            </div>
+        )}
+
+        {/* Recurring Logic */}
+        {availabilityType === 'recurring' && (
+            <div>
+                <label style={labelStyle}>Select Days</label>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center' }}>
+                    {daysLabels.map((dayLabel, index) => (
+                        <button key={index} type="button" onClick={() => toggleDay(index)} style={{ width: '42px', height: '42px', borderRadius: '12px', border: 'none', backgroundColor: weeklySchedule[index].active ? '#2563eb' : '#f1f5f9', color: weeklySchedule[index].active ? 'white' : '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: weeklySchedule[index].active ? '0 4px 12px rgba(37, 99, 235, 0.2)' : 'none' }}>{dayLabel}</button>
+                    ))}
+                </div>
+                <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>⚡ Quick Apply</span>
+                        <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                         <select value={batchTime.start} onChange={e => handleBatchTimeChange('start', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
+                            <option value="" disabled>--:--</option>
+                            {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
+                         </select>
+                         <span style={{ color: '#94a3b8' }}>➜</span>
+                         <select value={batchTime.end} onChange={e => handleBatchTimeChange('end', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
+                            <option value="" disabled>--:--</option>
+                            {getValidRecurringEndTimes(batchTime.start).map(t => <option key={t} value={t}>{t}</option>)}
+                         </select>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {Object.keys(weeklySchedule).map((key) => {
+                        const dayIndex = parseInt(key);
+                        const dayData = weeklySchedule[dayIndex];
+                        if (!dayData.active) return null;
+                        return (
+                            <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
+                                <select value={dayData.start} onChange={(e) => updateDayTime(dayIndex, 'start', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
+                                    <option value="" disabled>--:--</option>
+                                    {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                                <span style={{ color: '#cbd5e1' }}>-</span>
+                                <select value={dayData.end} onChange={(e) => updateDayTime(dayIndex, 'end', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
+                                    <option value="" disabled>--:--</option>
+                                    {getValidRecurringEndTimes(dayData.start).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        {validationErrors.length > 0 && (
+            <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#b91c1c', marginBottom: '6px' }}>⚠️ Please fill in missing details:</div>
+                <ul style={{ margin: 0, paddingLeft: '20px', color: '#b91c1c', fontSize: '12px' }}>
+                    {validationErrors.map((err, idx) => <li key={idx} style={{ marginBottom: '2px' }}>{err}</li>)}
+                </ul>
+            </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #f1f5f9' }}>
+            <button type="button" onClick={onClose} disabled={loading} style={cancelButtonStyle}>Cancel</button>
+            <button type="submit" disabled={loading || validationErrors.length > 0} style={{ ...submitButtonStyle, opacity: (loading || validationErrors.length > 0) ? 0.5 : 1, cursor: (loading || validationErrors.length > 0) ? 'not-allowed' : 'pointer' }}>
+                {loading ? 'Creating...' : 'Create Spot'}
+            </button>
+        </div>
+
+        {apiMessage && !apiMessage.includes('precise') && (
+          <div style={{ marginTop: '15px', padding: '10px', textAlign: 'center', borderRadius: '8px', backgroundColor: apiMessage.includes('Success') ? '#dcfce7' : '#fee2e2', color: apiMessage.includes('Success') ? '#166534' : '#991b1b', fontSize: '14px', fontWeight: '500' }}>{apiMessage}</div>
         )}
       </form>
     </div>
   );
 };
 
-const groupStyle = { marginBottom: '16px', display: 'flex', flexDirection: 'column' };
-const labelStyle = { marginBottom: '6px', fontWeight: '500' };
-const inputStyle = { padding: '10px', borderRadius: '6px', border: '1px solid #ddd' };
+const groupStyle = { display: 'flex', flexDirection: 'column', gap: '6px' };
+const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
+const subLabelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '2px', textTransform: 'uppercase' };
+const inputWrapperStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: '10px', height: '42px', backgroundColor: '#fff', transition: 'border-color 0.2s' };
+const inputStyle = { width: '100%', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px', fontSize: '14px', outline: 'none', color: '#1e293b', fontFamily: 'inherit' };
+const selectStyle = { ...inputStyle, cursor: 'pointer', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '10px' };
+const stepperBtnStyle = { border: 'none', background: 'transparent', color: '#64748b', fontSize: '18px', padding: '0 10px', cursor: 'pointer' };
+const activeTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', fontWeight: '600', color: '#0f172a', cursor: 'default' };
+const inactiveTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', fontWeight: '500' };
+const addBtnStyle = { marginTop: '10px', padding: '12px', border: '1px dashed #3b82f6', borderRadius: '12px', backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: '600', cursor: 'pointer', width: '100%', fontSize: '14px' };
+const removeBtnStyle = { border: 'none', background: 'none', color: '#ef4444', fontSize: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center' };
+const tinyBtnStyle = { fontSize: '11px', padding: '4px 10px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' };
+const cancelButtonStyle = { padding: '12px 24px', backgroundColor: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' };
+const submitButtonStyle = { flex: 1, padding: '12px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)' };
 
 export default CreateParkingPage;
