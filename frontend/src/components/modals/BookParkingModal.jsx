@@ -90,30 +90,43 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
 
     const timeOptions = useMemo(() => generateTimeOptions(), []);
 
+    const normalizeBackendDayToJs = (d) => {
+        const n = Number(d);
+
+        // Case A: backend already uses JS 0..6
+        if (n >= 0 && n <= 6) return n;
+
+        // Case B: backend uses Java DayOfWeek 1..7 (Mon..Sun)
+        if (n >= 1 && n <= 7) return n === 7 ? 0 : n; // 7->0(Sun), 1->1(Mon), ... 6->6(Sat)
+
+        // Unknown -> return null so it never matches
+        return null;
+    };
+
     const normalizedAvailabilityList = useMemo(() => {
         if (!spot) return [];
-
         const type = String(spot.availabilityType || '').toUpperCase();
 
-        // Backend sends recurringSchedule: [{ dayOfWeek, start, end }]
         if (type === 'RECURRING' && Array.isArray(spot.recurringSchedule)) {
-            return spot.recurringSchedule.map(r => ({
-                dayOfWeek: r.dayOfWeek,
-                startTime: r.start, // backend uses "start"
-                endTime: r.end,     // backend uses "end"
-            }));
+            return spot.recurringSchedule
+                .map(r => ({
+                    dayOfWeek: normalizeBackendDayToJs(r.dayOfWeek),
+                    startTime: r.start,
+                    endTime: r.end,
+                }))
+                .filter(r => r.dayOfWeek !== null);
         }
 
-        // Backend sends specificAvailability: [{ start, end }]
         if (type === 'SPECIFIC' && Array.isArray(spot.specificAvailability)) {
             return spot.specificAvailability.map(r => ({
-                startDateTime: r.start, // backend uses "start"
-                endDateTime: r.end,     // backend uses "end"
+                startDateTime: r.start,
+                endDateTime: r.end,
             }));
         }
 
         return [];
     }, [spot]);
+
     const isSelectableDate = (date) => {
         console.log("check", date.toDateString(), "jsDay", date.getDay(), "rules", normalizedAvailabilityList.map(x=>x.dayOfWeek));
 
@@ -125,17 +138,10 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         if (!normalizedAvailabilityList || normalizedAvailabilityList.length === 0) return false;
 
         if (type === 'RECURRING') {
-            const jsDay = date.getDay(); // 0=Sun..6=Sat
-
-            // Support multiple backend conventions
-            const alt1 = jsDay === 0 ? 7 : jsDay;       // 1..7 (Mon..Sun)
-            const alt2 = jsDay === 0 ? 1 : jsDay + 1;   // 1..7 (Sun..Sat)
-
-            return normalizedAvailabilityList.some(r => {
-                const d = r.dayOfWeek;
-                return d === jsDay || d === alt1 || d === alt2;
-            });
+            const jsDay = date.getDay(); // 0..6
+            return normalizedAvailabilityList.some(r => r.dayOfWeek === jsDay);
         }
+
 
         if (type === 'SPECIFIC') {
             const targetYMD = toYMD(date); // YYYY-MM-DD
@@ -170,23 +176,14 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
         const dayOfWeek = dateObj.getDay(); // 0=Sun, 1=Mon...
 
         if (type === 'RECURRING') {
-            const jsDay = new Date(dateStr).getDay(); // 0..6
+            const jsDay = ymdToLocalDate(dateStr).getDay(); // safer than new Date(dateStr)
+            const rule = normalizedAvailabilityList.find(r => r.dayOfWeek === jsDay);
+            if (!rule) return null;
 
-            const alt1 = jsDay === 0 ? 7 : jsDay;      // 1..7 (Mon..Sun)
-            const alt2 = jsDay === 0 ? 1 : jsDay + 1;  // 1..7 (Sun..Sat)
-
-            const rule = normalizedAvailabilityList.find(r => {
-                const d = r.dayOfWeek;
-                return d === jsDay || d === alt1 || d === alt2;
-            });
-
-            if (rule?.startTime && rule?.endTime) {
-                return {
-                    start: String(rule.startTime).substring(0, 5),
-                    end: String(rule.endTime).substring(0, 5),
-                };
-            }
-            return null;
+            return {
+                start: String(rule.startTime).substring(0, 5),
+                end: String(rule.endTime).substring(0, 5),
+            };
         }
 
 
