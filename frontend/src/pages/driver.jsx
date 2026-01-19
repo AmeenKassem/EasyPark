@@ -9,6 +9,9 @@ import ProfileModal from '../components/modals/ProfileModal'
 import BookParkingModal from '../components/modals/BookParkingModal'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { generateTimeOptions } from '../utils/timeOptions'
+import TimeDropdown from '../components/inputs/TimeDropdown'
+
 const toYMD = (d) => {
     if (!d) return ''
     const y = d.getFullYear()
@@ -72,16 +75,6 @@ const matchesAvailabilityWindow = (spot, wantFrom, wantTo) => {
 }
 
 // --- HELPER: Generate Time Slots ---
-const generateTimeOptions = () => {
-    const times = [];
-    for (let i = 0; i < 24 * 60; i += 15) { // 15 minute steps
-        const hours = Math.floor(i / 60);
-        const mins = i % 60;
-        const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-        times.push(formatted);
-    }
-    return times;
-};
 
 // --- ICONS ---
 function IconUser({ size = 18 }) {
@@ -710,33 +703,27 @@ export default function DriverPage() {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                                     <div>
                                         <label style={labelStyle}>Start Time</label>
-                                        <select
+                                        <TimeDropdown
+                                            label="Start Time"
                                             value={filterStart}
-                                            onChange={(e) => setFilterStart(e.target.value)}
                                             disabled={!filterDate}
-                                            style={{...selectStyle, opacity: !filterDate ? 0.5 : 1}}
-                                        >
-                                            <option value="">--:--</option>
-                                            {getValidStartTimes(filterDate).map((t) => (
-                                                <option key={t} value={t}>{t}</option>
-                                            ))}
-
-                                        </select>
+                                            options={getValidStartTimes(filterDate)}
+                                            onChange={setFilterStart}
+                                            labelStyle={labelStyle}
+                                            buttonStyle={selectStyle}
+                                        />
                                     </div>
                                     <div>
                                         <label style={labelStyle}>End Time</label>
-                                        <select
+                                        <TimeDropdown
+                                            label="End Time"
                                             value={filterEnd}
-                                            onChange={(e) => setFilterEnd(e.target.value)}
                                             disabled={!filterDate}
-                                            style={{...selectStyle, opacity: !filterDate ? 0.5 : 1}}
-                                        >
-                                            <option value="">--:--</option>
-                                            {getValidEndTimes(filterDate, filterStart).map((t) => (
-                                                <option key={t} value={t}>{t}</option>
-                                            ))}
-
-                                        </select>
+                                            options={getValidEndTimes(filterDate, filterStart)}
+                                            onChange={setFilterEnd}
+                                            labelStyle={labelStyle}
+                                            buttonStyle={selectStyle}
+                                        />
                                     </div>
                                 </div>
 
