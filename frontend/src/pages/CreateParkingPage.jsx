@@ -1,23 +1,23 @@
 import React, { useEffect, useState, useMemo } from 'react';
+
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-// --- HELPER: Generate Time Slots (00:00 - 23:59) ---
+
+// --- HELPER: Generate Time Slots ---
 const generateTimeOptions = (stepMinutes = 30) => {
     const times = [];
     for (let i = 0; i < 24 * 60; i += stepMinutes) {
         const hours = Math.floor(i / 60);
         const mins = i % 60;
-        // Force 24H format (e.g., 14:30)
         const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
         times.push(formatted);
     }
     times.push('23:59'); // Add End-of-Day
     return times;
 };
-
 const toYMD = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -25,7 +25,6 @@ const toYMD = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
-
 const splitIsoToDateTime = (iso) => {
     if (!iso) return { date: '', time: '' }
     const s = String(iso)
@@ -39,26 +38,8 @@ const normalizeTimeHHMM = (t) => {
     return String(t).slice(0, 5) // handles "HH:MM:SS" and "HH:MM"
 }
 
-// --- NEW HELPERS FOR DATEPICKER TIME ---
-const timeStringToDate = (timeStr) => {
-    if (!timeStr) return null;
-    const date = new Date();
-    const [hours, minutes] = timeStr.split(':');
-    date.setHours(parseInt(hours), parseInt(minutes));
-    date.setSeconds(0);
-    return date;
-};
-
-const dateToTimeString = (date) => {
-    if (!date) return '';
-    // Force 24H string generation
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-};
-
-
 const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', initialSpot = null }) => {
+
 
     // --- STATE ---
     const [formData, setFormData] = useState({
@@ -71,10 +52,12 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
     const [availabilityType, setAvailabilityType] = useState('specific');
 
+    // CHANGE: Initialize with empty strings to force user selection
     const [specificSlots, setSpecificSlots] = useState([
         { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }
     ]);
 
+    // CHANGE: Initialize recurring times with empty strings
     const [weeklySchedule, setWeeklySchedule] = useState({
         0: { active: false, start: '', end: '' },
         1: { active: false, start: '', end: '' },
@@ -85,10 +68,10 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         6: { active: false, start: '', end: '' },
     });
 
+    // CHANGE: Initialize batch times with empty strings
     const [batchTime, setBatchTime] = useState({ start: '', end: '' });
     const [loading, setLoading] = useState(false);
     const [apiMessage, setApiMessage] = useState('');
-
     useEffect(() => {
         if (mode !== 'edit' || !initialSpot) return
 
@@ -158,7 +141,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     // --- HELPER: Get Current Time HH:MM ---
     const getCurrentTimeHHMM = () => {
         const now = new Date();
-        return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     };
 
     // --- VALIDATION LOGIC ---
@@ -228,6 +211,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     };
 
     const addSpecificSlot = () => {
+        // CHANGE: Add new slot with empty times
         setSpecificSlots(prev => [...prev, { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]);
     };
 
@@ -236,6 +220,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         setSpecificSlots(prev => prev.filter(slot => slot.id !== id));
     };
 
+    // --- STRICT SANITIZATION UPDATE ---
     const updateSpecificSlot = (id, field, value) => {
         setSpecificSlots(prev => prev.map(slot => {
             if (slot.id !== id) return slot;
@@ -244,20 +229,22 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             const todayStr = new Date().toISOString().split('T')[0];
             const currentTime = getCurrentTimeHHMM();
 
-            // Sanitize START TIME (vs Today)
+            // 2. Sanitize START TIME (vs Today)
             if (newSlot.startDate === todayStr && newSlot.startTime) {
                 if (newSlot.startTime <= currentTime) {
                     newSlot.startTime = '';
                 }
             }
-            // Sanitize END DATE (vs Start Date)
+
+            // 3. Sanitize END DATE (vs Start Date)
             if (newSlot.startDate && newSlot.endDate) {
                 if (newSlot.endDate < newSlot.startDate) {
                     newSlot.endDate = '';
                     newSlot.endTime = '';
                 }
             }
-            // Sanitize END TIME (vs Start Time on same day)
+
+            // 4. Sanitize END TIME (vs Start Time on same day)
             if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
                 if (newSlot.startTime && newSlot.endTime) {
                     if (newSlot.endTime <= newSlot.startTime) {
@@ -355,24 +342,32 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     })
                     .filter(Boolean)
                 payload.recurringSchedule = scheduleList
+
             }
 
             const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
             if (mode === 'edit') {
-                if (!initialSpot?.id) throw new Error('Missing spot id for edit.')
+                if (!initialSpot?.id) {
+                    throw new Error('Missing spot id for edit.')
+                }
+
                 await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 })
+
                 setApiMessage('Success! Parking spot updated.')
                 setTimeout(() => { onUpdated?.(); onClose?.(); }, 700)
             } else {
                 await axios.post(`${API_BASE}/api/parking-spots`, payload, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 })
+
                 setApiMessage('Success! Parking spot created.')
                 setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
             }
+
+
         } catch (error) {
             const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
             setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
@@ -387,56 +382,55 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     return (
         <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
             <style>{`
-      input[type=number]::-webkit-outer-spin-button,
-      input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-      input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
 
-      /* Match booking calendar look */
-      .ep-date-wrap { width: 100%; }
-      .ep-date-picker {
-        width: 100%;
-        height: 38px;
-        padding: 0 10px;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        font-size: 13px;
-        outline: none;
-        color: #1e293b;
-        font-family: inherit;
-        background: #fff;
-        box-sizing: border-box;
-      }
-      .ep-date-picker:focus {
-        border-color: #94a3b8;
-      }
-      .react-datepicker {
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
-        overflow: hidden;
-      }
-      .react-datepicker__header {
-        background: #ffffff;
-        border-bottom: 1px solid #f1f5f9;
-      }
-      /* Ensure time list in datepicker is clean */
-      .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
-        padding: 8px;
-        display: flex;
-        justify-content: center;
-      }
-    `}</style>
+  /* Match booking calendar look */
+  .ep-date-wrap { width: 100%; }
+  .ep-date-picker {
+    width: 100%;
+    height: 38px;               /* matches your current compact slot row */
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    outline: none;
+    color: #1e293b;
+    font-family: inherit;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .ep-date-picker:focus {
+    border-color: #94a3b8;
+  }
+
+  /* Optional: make the popup look cleaner */
+  .react-datepicker {
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+  .react-datepicker__header {
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+  }
+`}</style>
+
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                 <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
                     {mode === 'edit' ? 'Edit Spot Availability' : 'Add New Spot'}
                 </h2>
+
                 <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
             </div>
 
             <form onSubmit={handleSubmit}>
                 <div style={groupStyle}>
                     <label style={labelStyle}>Location</label>
+
                     {mode === 'edit' ? (
                         <>
                             <input
@@ -474,10 +468,11 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     )}
                 </div>
 
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
                     <div style={groupStyle}>
                         <label style={labelStyle}>Price / Hour</label>
-                        <div style={{ ...inputWrapperStyle, padding: '0 8px' }}>
+                        <div style={{...inputWrapperStyle, padding: '0 8px'}}>
                             <button type="button" onClick={() => { const newVal = parseFloat(formData.pricePerHour || 0) - 0.5; if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>−</button>
                             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px' }}>
                                 <input type="number" name="pricePerHour" value={formData.pricePerHour} onChange={handleChange} placeholder="0" style={{ ...inputStyle, border: 'none', textAlign: 'right', fontSize: '18px', fontWeight: 'bold', width: '45px', padding: 0, backgroundColor: 'transparent' }} />
@@ -505,15 +500,16 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                 {/* Specific Dates Logic */}
                 {availabilityType === 'specific' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '5px' }}>Set the start and end time for when the parking is available.</div>
+                        <div style={{fontSize: '13px', color: '#64748b', marginBottom: '5px'}}>Set the start and end time for when the parking is available.</div>
                         {specificSlots.map((slot) => {
-                            const displayEndTime = slot.endTime;
+                            const validEndTimes = getValidEndTimes(slot.startDate, slot.endDate, slot.startTime);
+                            const isCurrentEndTimeValid = !slot.endTime || validEndTimes.includes(slot.endTime);
+                            const displayEndTime = isCurrentEndTimeValid ? slot.endTime : '';
 
                             return (
                                 <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                        <span style={{ ...subLabelStyle, color: '#166534' }}>FROM (Start)</span>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                                        <span style={{...subLabelStyle, color: '#166534'}}>FROM (Start)</span>
                                         <DatePicker
                                             selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
                                             onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
@@ -524,25 +520,14 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <DatePicker
-                                            selected={timeStringToDate(slot.startTime)}
-                                            onChange={(date) => updateSpecificSlot(slot.id, 'startTime', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
-                                        />
+                                        <select value={slot.startTime} onChange={(e) => updateSpecificSlot(slot.id, 'startTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
+                                            <option value="" disabled>--:--</option>
+                                            {getValidStartTimes(slot.startDate).map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
                                     </div>
-
                                     <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                        <span style={{ ...subLabelStyle, color: '#991b1b' }}>TO (End)</span>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                                        <span style={{...subLabelStyle, color: '#991b1b'}}>TO (End)</span>
                                         <DatePicker
                                             selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
                                             onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
@@ -553,26 +538,12 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <DatePicker
-                                            selected={timeStringToDate(displayEndTime)}
-                                            onChange={(date) => updateSpecificSlot(slot.id, 'endTime', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
-                                        />
+                                        <select value={displayEndTime} onChange={(e) => updateSpecificSlot(slot.id, 'endTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
+                                            <option value="" disabled>--:--</option>
+                                            {validEndTimes.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
                                     </div>
-
-                                    {specificSlots.length > 1 && (
-                                        <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>
-                                            &times;
-                                        </button>
-                                    )}
+                                    {specificSlots.length > 1 && <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>&times;</button>}
                                 </div>
                             );
                         })}
@@ -580,7 +551,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     </div>
                 )}
 
-                {/* Recurring Logic - NOW UPDATED TO DATEPICKER */}
+                {/* Recurring Logic */}
                 {availabilityType === 'recurring' && (
                     <div>
                         <label style={labelStyle}>Select Days</label>
@@ -595,39 +566,15 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-
-                                {/* BATCH START */}
-                                <DatePicker
-                                    selected={timeStringToDate(batchTime.start)}
-                                    onChange={(date) => handleBatchTimeChange('start', dateToTimeString(date))}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    timeCaption="Time"
-                                    dateFormat="HH:mm"
-                                    timeFormat="HH:mm"
-                                    placeholderText="--:--"
-                                    className="ep-date-picker"
-                                    wrapperClassName="ep-date-wrap"
-                                />
+                                <select value={batchTime.start} onChange={e => handleBatchTimeChange('start', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
+                                    <option value="" disabled>--:--</option>
+                                    {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
                                 <span style={{ color: '#94a3b8' }}>➜</span>
-
-                                {/* BATCH END */}
-                                <DatePicker
-                                    selected={timeStringToDate(batchTime.end)}
-                                    onChange={(date) => handleBatchTimeChange('end', dateToTimeString(date))}
-                                    minTime={timeStringToDate(batchTime.start)} // Prevent picking earlier time
-                                    maxTime={timeStringToDate("23:59")}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    timeCaption="Time"
-                                    dateFormat="HH:mm"
-                                    timeFormat="HH:mm"
-                                    placeholderText="--:--"
-                                    className="ep-date-picker"
-                                    wrapperClassName="ep-date-wrap"
-                                />
+                                <select value={batchTime.end} onChange={e => handleBatchTimeChange('end', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
+                                    <option value="" disabled>--:--</option>
+                                    {getValidRecurringEndTimes(batchTime.start).map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
                             </div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -638,40 +585,15 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 return (
                                     <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                         <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
-
-                                        {/* RECURRING START */}
-                                        <DatePicker
-                                            selected={timeStringToDate(dayData.start)}
-                                            onChange={(date) => updateDayTime(dayIndex, 'start', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
-                                        />
-
+                                        <select value={dayData.start} onChange={(e) => updateDayTime(dayIndex, 'start', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
+                                            <option value="" disabled>--:--</option>
+                                            {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
                                         <span style={{ color: '#cbd5e1' }}>-</span>
-
-                                        {/* RECURRING END */}
-                                        <DatePicker
-                                            selected={timeStringToDate(dayData.end)}
-                                            onChange={(date) => updateDayTime(dayIndex, 'end', dateToTimeString(date))}
-                                            minTime={timeStringToDate(dayData.start)} // Prevent picking earlier time
-                                            maxTime={timeStringToDate("23:59")}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
-                                        />
+                                        <select value={dayData.end} onChange={(e) => updateDayTime(dayIndex, 'end', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
+                                            <option value="" disabled>--:--</option>
+                                            {getValidRecurringEndTimes(dayData.start).map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
                                     </div>
                                 );
                             })}
@@ -703,7 +625,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     );
 };
 
-// --- STYLES ---
 const groupStyle = { display: 'flex', flexDirection: 'column', gap: '6px' };
 const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
 const subLabelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '2px', textTransform: 'uppercase' };
