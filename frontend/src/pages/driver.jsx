@@ -7,6 +7,69 @@ import MapComponent from '../components/map/mapComponent'
 import { logout, getCurrentUser, subscribeAuthChanged } from '../services/session'
 import ProfileModal from '../components/modals/ProfileModal'
 import BookParkingModal from '../components/modals/BookParkingModal'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+const toYMD = (d) => {
+    if (!d) return ''
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+}
+
+const getCurrentTimeHHMM = () => {
+    const now = new Date()
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+}
+const timeToMins = (hhmm) => {
+    if (!hhmm) return 0
+    const [h, m] = String(hhmm).split(':').map(Number)
+    return h * 60 + m
+}
+
+const dateTimeToMins = (d) => d.getHours() * 60 + d.getMinutes()
+
+const sameLocalDate = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+const matchesAvailabilityWindow = (spot, wantFrom, wantTo) => {
+    const type = String(spot?.availabilityType || '').toUpperCase()
+
+    // If the driver picked a window, be strict: spot must define availability.
+    if (!type) return false
+
+    // SPECIFIC: any slot fully contains the requested window
+    if (type === 'SPECIFIC') {
+        const slots = Array.isArray(spot?.specificAvailability) ? spot.specificAvailability : []
+        return slots.some((sl) => {
+            if (!sl?.start || !sl?.end) return false
+            const slotStart = new Date(sl.start)
+            const slotEnd = new Date(sl.end)
+            return slotStart <= wantFrom && slotEnd >= wantTo
+        })
+    }
+
+    // RECURRING: must be same day and within one of the day's schedules
+    if (type === 'RECURRING') {
+        if (!sameLocalDate(wantFrom, wantTo)) return false
+        const day = wantFrom.getDay() // JS: 0=Sun..6=Sat (matches your DB comment)
+        const wantStartM = dateTimeToMins(wantFrom)
+        const wantEndM = dateTimeToMins(wantTo)
+
+        const schedules = Array.isArray(spot?.recurringSchedule) ? spot.recurringSchedule : []
+        return schedules.some((sc) => {
+            if (sc?.dayOfWeek == null || !sc?.start || !sc?.end) return false
+            if (Number(sc.dayOfWeek) !== day) return false
+            const scStartM = timeToMins(sc.start)
+            const scEndM = timeToMins(sc.end)
+            return scStartM <= wantStartM && scEndM >= wantEndM
+        })
+    }
+
+    return false
+}
 
 // --- HELPER: Generate Time Slots ---
 const generateTimeOptions = () => {
@@ -167,13 +230,31 @@ export default function DriverPage() {
     const [searchBounds, setSearchBounds] = useState(null)
     const [filtersOpen, setFiltersOpen] = useState(false)
     const [coveredOnly, setCoveredOnly] = useState(false)
-    const [activeOnly, setActiveOnly] = useState(true)
     const [maxPrice, setMaxPrice] = useState('')
 
     // Date/Time State
     const [filterDate, setFilterDate] = useState('')
     const [filterStart, setFilterStart] = useState('')
     const [filterEnd, setFilterEnd] = useState('')
+    const getStartOptions = () => timeOptions
+
+    const getValidStartTimes = (selectedDateYMD) => {
+        if (!selectedDateYMD) return getStartOptions()
+
+        const todayStr = toYMD(new Date())
+
+        if (selectedDateYMD === todayStr) {
+            const currentHm = getCurrentTimeHHMM()
+            return getStartOptions().filter((t) => t > currentHm)
+        }
+        return getStartOptions()
+    }
+
+    const getValidEndTimes = (selectedDateYMD, startTime) => {
+        if (!selectedDateYMD) return timeOptions
+        if (!startTime) return timeOptions
+        return timeOptions.filter((t) => t > startTime)
+    }
 
     const timeOptions = useMemo(() => generateTimeOptions(), []);
 
@@ -190,6 +271,29 @@ export default function DriverPage() {
     const profileBtnRef = useRef(null)
     const [profileMenuPos, setProfileMenuPos] = useState({ top: 0, left: 0 })
     const [isProfileModalOpen, setProfileModalOpen] = useState(false)
+    useEffect(() => {
+        if (!filterDate) {
+            if (filterStart) setFilterStart('')
+            if (filterEnd) setFilterEnd('')
+            return
+        }
+
+        // If start is no longer valid for the selected date (e.g., today and time already passed) -> clear it
+        const validStarts = getValidStartTimes(filterDate)
+        if (filterStart && !validStarts.includes(filterStart)) {
+            setFilterStart('')
+        }
+    }, [filterDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!filterStart) {
+            if (filterEnd) setFilterEnd('')
+            return
+        }
+        if (filterEnd && filterEnd <= filterStart) {
+            setFilterEnd('')
+        }
+    }, [filterStart])
 
     // Sync User
     useEffect(() => {
@@ -237,25 +341,26 @@ export default function DriverPage() {
     const filteredSpots = useMemo(() => {
         let data = Array.isArray(allSpots) ? [...allSpots] : []
 
-        if (activeOnly) {
-            data = data.filter((s) => s?.active === true)
-        }
+        data = data.filter((s) => s?.active === true)
+
 
         // Date/Time Logic
+// Date/Time Logic (uses availabilityType / schedules from ParkingResponse)
         if (filterDate) {
-            const startStr = filterStart || "00:00";
-            const endStr = filterEnd || "23:59";
+            const startStr = filterStart || '00:00'
+            const endStr = filterEnd || '23:59'
 
-            const wantFrom = new Date(`${filterDate}T${startStr}`);
-            const wantTo = new Date(`${filterDate}T${endStr}`);
+            if (filterStart && filterEnd && endStr <= startStr) {
+                return []
+            }
 
-            data = data.filter((s) => {
-                if (!s?.availableFrom || !s?.availableTo) return true
-                const spotFrom = new Date(s.availableFrom)
-                const spotTo = new Date(s.availableTo)
-                return spotFrom <= wantFrom && spotTo >= wantTo
-            })
+            const wantFrom = new Date(`${filterDate}T${startStr}:00`)
+            const wantTo = new Date(`${filterDate}T${endStr}:00`)
+
+            data = data.filter((s) => matchesAvailabilityWindow(s, wantFrom, wantTo))
         }
+
+
 
         // Bounds Logic
         if (searchBounds) {
@@ -278,7 +383,7 @@ export default function DriverPage() {
         }
 
         return data
-    }, [allSpots, activeOnly, filterDate, filterStart, filterEnd, searchBounds, address])
+    }, [allSpots,  filterDate, filterStart, filterEnd, searchBounds, address])
 
     // --- Place selection logic ---
     const handlePlaceSelect = (place) => {
@@ -377,7 +482,6 @@ export default function DriverPage() {
         setAddress('')
         setSearchBounds(null)
         setCoveredOnly(false)
-        setActiveOnly(true)
         setMaxPrice('')
         setFilterDate('')
         setFilterStart('')
@@ -537,10 +641,10 @@ export default function DriverPage() {
 
                             <div style={{ display: 'grid', gap: '8px' }}>
                                 {/* Toggles */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '8px' }}>
-                                    <ToggleSwitch label="Active Only" checked={activeOnly} onChange={setActiveOnly} />
+                                <div style={{ marginBottom: '8px' }}>
                                     <ToggleSwitch label="Covered Only" checked={coveredOnly} onChange={setCoveredOnly} />
                                 </div>
+
 
                                 {/* Max Price */}
                                 <div style={{ marginBottom: '16px' }}>
@@ -591,13 +695,16 @@ export default function DriverPage() {
                                 {/* Date Selection */}
                                 <div style={{ marginBottom: '16px' }}>
                                     <label style={labelStyle}>Date</label>
-                                    <input
-                                        type="date"
-                                        value={filterDate}
-                                        min={new Date().toISOString().split('T')[0]}
-                                        onChange={(e) => setFilterDate(e.target.value)}
-                                        style={inputStyle}
+                                    <DatePicker
+                                        selected={filterDate ? new Date(`${filterDate}T00:00:00`) : null}
+                                        onChange={(d) => setFilterDate(d ? toYMD(d) : '')}
+                                        minDate={new Date()}
+                                        dateFormat="MM/dd/yyyy"
+                                        placeholderText="Select date"
+                                        className="ep-date-picker"
+                                        wrapperClassName="ep-date-wrap"
                                     />
+
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -610,7 +717,10 @@ export default function DriverPage() {
                                             style={{...selectStyle, opacity: !filterDate ? 0.5 : 1}}
                                         >
                                             <option value="">--:--</option>
-                                            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                            {getValidStartTimes(filterDate).map((t) => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))}
+
                                         </select>
                                     </div>
                                     <div>
@@ -622,7 +732,10 @@ export default function DriverPage() {
                                             style={{...selectStyle, opacity: !filterDate ? 0.5 : 1}}
                                         >
                                             <option value="">--:--</option>
-                                            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                            {getValidEndTimes(filterDate, filterStart).map((t) => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))}
+
                                         </select>
                                     </div>
                                 </div>
