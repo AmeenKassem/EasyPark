@@ -142,7 +142,22 @@ public class ParkingService {
         return parkingRepository.findByOwnerId(ownerId);
     }
 
-    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice) {
+    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice,
+                                LocalDateTime from, LocalDateTime to) {
+
+        // base filters + availability by bookings
+        if (from != null && to != null) {
+            if (!from.isBefore(to)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from must be before to");
+            }
+            return parkingRepository.searchAvailable(
+                    covered, minPrice, maxPrice,
+                    from, to,
+                    BUSY_STATUSES
+            );
+        }
+
+        // fallback: no time filter, return active + basic filters
         return parkingRepository.findAll().stream()
                 .filter(Parking::isActive)
                 .filter(p -> covered == null || p.isCovered() == covered)
@@ -150,6 +165,10 @@ public class ParkingService {
                 .filter(p -> maxPrice == null || p.getPricePerHour() <= maxPrice)
                 .toList();
     }
+    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice) {
+        return search(covered, minPrice, maxPrice, null, null);
+    }
+
 
     public List<BookedIntervalResponse> getBusyIntervals(Long parkingId, LocalDateTime from, LocalDateTime to) {
         Parking p = parkingRepository.findById(parkingId)

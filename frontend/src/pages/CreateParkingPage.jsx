@@ -4,20 +4,9 @@ import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-
-
+import TimeDropdown from '../components/inputs/TimeDropdown'
+import { generateTimeOptions } from '../utils/timeOptions'
 // --- HELPER: Generate Time Slots ---
-const generateTimeOptions = (stepMinutes = 30) => {
-    const times = [];
-    for (let i = 0; i < 24 * 60; i += stepMinutes) {
-        const hours = Math.floor(i / 60);
-        const mins = i % 60;
-        const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-        times.push(formatted);
-    }
-    times.push('23:59'); // Add End-of-Day
-    return times;
-};
 const toYMD = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -520,10 +509,15 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <select value={slot.startTime} onChange={(e) => updateSpecificSlot(slot.id, 'startTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
-                                            <option value="" disabled>--:--</option>
-                                            {getValidStartTimes(slot.startDate).map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
+                                        <TimeDropdown
+                                            value={slot.startTime}
+                                            onChange={(v) => updateSpecificSlot(slot.id, 'startTime', v)}
+                                            options={getValidStartTimes(slot.startDate)}
+                                            placeholder="--:--"
+                                            disabled={!slot.startDate}
+                                            maxVisible={5}
+                                        />
+
                                     </div>
                                     <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
                                     <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
@@ -538,10 +532,15 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <select value={displayEndTime} onChange={(e) => updateSpecificSlot(slot.id, 'endTime', e.target.value)} style={{...selectStyle, height: '38px', fontSize: '13px'}}>
-                                            <option value="" disabled>--:--</option>
-                                            {validEndTimes.map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
+                                        <TimeDropdown
+                                            value={displayEndTime}
+                                            onChange={(v) => updateSpecificSlot(slot.id, 'endTime', v)}
+                                            options={validEndTimes}
+                                            placeholder="--:--"
+                                            disabled={!slot.startDate || !slot.endDate || !slot.startTime}
+                                            maxVisible={5}
+                                        />
+
                                     </div>
                                     {specificSlots.length > 1 && <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>&times;</button>}
                                 </div>
@@ -566,15 +565,24 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <select value={batchTime.start} onChange={e => handleBatchTimeChange('start', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
-                                    <option value="" disabled>--:--</option>
-                                    {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
+                                <TimeDropdown
+                                    value={batchTime.start}
+                                    onChange={(v) => handleBatchTimeChange('start', v)}
+                                    options={getStartOptions()}
+                                    placeholder="--:--"
+                                    maxVisible={5}
+                                />
+
                                 <span style={{ color: '#94a3b8' }}>➜</span>
-                                <select value={batchTime.end} onChange={e => handleBatchTimeChange('end', e.target.value)} style={{...selectStyle, backgroundColor: 'white'}}>
-                                    <option value="" disabled>--:--</option>
-                                    {getValidRecurringEndTimes(batchTime.start).map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
+                                <TimeDropdown
+                                    value={batchTime.end}
+                                    onChange={(v) => handleBatchTimeChange('end', v)}
+                                    options={getValidRecurringEndTimes(batchTime.start)}
+                                    placeholder="--:--"
+                                    disabled={!batchTime.start}
+                                    maxVisible={5}
+                                />
+
                             </div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -585,15 +593,24 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 return (
                                     <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                         <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
-                                        <select value={dayData.start} onChange={(e) => updateDayTime(dayIndex, 'start', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
-                                            <option value="" disabled>--:--</option>
-                                            {getStartOptions().map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
+                                        <TimeDropdown
+                                            value={dayData.start}
+                                            onChange={(v) => updateDayTime(dayIndex, 'start', v)}
+                                            options={getStartOptions()}
+                                            placeholder="--:--"
+                                            maxVisible={5}
+                                        />
+
                                         <span style={{ color: '#cbd5e1' }}>-</span>
-                                        <select value={dayData.end} onChange={(e) => updateDayTime(dayIndex, 'end', e.target.value)} style={{...selectStyle, height: '32px', padding: '0 8px', fontSize: '13px'}}>
-                                            <option value="" disabled>--:--</option>
-                                            {getValidRecurringEndTimes(dayData.start).map(t => <option key={t} value={t}>{t}</option>)}
-                                        </select>
+                                        <TimeDropdown
+                                            value={dayData.end}
+                                            onChange={(v) => updateDayTime(dayIndex, 'end', v)}
+                                            options={getValidRecurringEndTimes(dayData.start)}
+                                            placeholder="--:--"
+                                            disabled={!dayData.start}
+                                            maxVisible={5}
+                                        />
+
                                     </div>
                                 );
                             })}

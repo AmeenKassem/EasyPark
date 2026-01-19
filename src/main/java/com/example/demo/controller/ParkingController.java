@@ -92,16 +92,15 @@ public class ParkingController {
     public ResponseEntity<List<ParkingResponse>> search(
             @RequestParam(required = false) Boolean covered,
             @RequestParam(required = false) Double minPrice,
-            @RequestParam(required = false) Double maxPrice
+            @RequestParam(required = false) Double maxPrice,
+            @RequestParam(required = false) LocalDateTime from,
+            @RequestParam(required = false) LocalDateTime to
     ) {
-        log.info("action=parking_search start covered={} minPrice={} maxPrice={}", covered, minPrice, maxPrice);
-
-        List<ParkingResponse> out = parkingService.search(covered, minPrice, maxPrice)
+        List<ParkingResponse> out = parkingService.search(covered, minPrice, maxPrice, from, to)
                 .stream().map(ParkingResponse::from).toList();
-
-        log.info("action=parking_search success count={}", out.size());
         return ResponseEntity.ok(out);
     }
+
     @GetMapping("/{id}/busy")
     public ResponseEntity<List<BookedIntervalResponse>> busy(
             @PathVariable Long id,
