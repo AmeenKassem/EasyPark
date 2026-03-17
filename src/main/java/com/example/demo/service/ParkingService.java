@@ -6,7 +6,7 @@ import com.example.demo.dto.UpdateParkingRequest;
 import com.example.demo.model.*;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-
+import com.example.demo.repository.ParkingRatingRepository;
 @Service
 public class ParkingService {
 
@@ -27,12 +27,16 @@ public class ParkingService {
 
     private final ParkingRepository parkingRepository;
     private final BookingRepository bookingRepository;
+    private final ParkingRatingRepository parkingRatingRepository;
     private static final Collection<BookingStatus> BUSY_STATUSES =
             List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
 
-    public ParkingService(ParkingRepository parkingRepository, BookingRepository bookingRepository) {
+    public ParkingService(ParkingRepository parkingRepository,
+                          BookingRepository bookingRepository,
+                          ParkingRatingRepository parkingRatingRepository) {
         this.parkingRepository = parkingRepository;
         this.bookingRepository = bookingRepository;
+        this.parkingRatingRepository = parkingRatingRepository;
     }
 
     @Transactional
@@ -185,5 +189,43 @@ public class ParkingService {
 
         List<Booking> overlaps = bookingRepository.findOverlaps(parkingId, effectiveFrom, effectiveTo, BUSY_STATUSES);
         return overlaps.stream().map(BookedIntervalResponse::from).toList();
+    }
+    @Transactional
+    public Parking rateParking(Long userId, Long parkingId, int rating) {
+        Parking p = parkingRepository.findById(parkingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
+
+        if (rating < 1 || rating > 5) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
+        }
+
+        if (parkingRatingRepository.existsByParkingIdAndUserId(parkingId, userId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
+        }
+
+        try {
+            ParkingRating parkingRating = new ParkingRating();
+            parkingRating.setParkingId(parkingId);
+            parkingRating.setUserId(userId);
+            parkingRating.setRating(rating);
+            parkingRatingRepository.saveAndFlush(parkingRating);
+
+            double oldAverage = p.getAverageRating();
+            int oldCount = p.getRatingCount();
+
+            double newAverage = ((oldAverage * oldCount) + rating) / (oldCount + 1);
+
+            p.setAverageRating(newAverage);
+            p.setRatingCount(oldCount + 1);
+
+            Parking saved = parkingRepository.save(p);
+
+            log.info("action=parking_rate success userId={} parkingId={} rating={} newAverage={} ratingCount={}",
+                    userId, parkingId, rating, saved.getAverageRating(), saved.getRatingCount());
+
+            return saved;
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
+        }
     }
 }

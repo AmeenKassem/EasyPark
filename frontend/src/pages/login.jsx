@@ -116,7 +116,7 @@ export default function LoginPage() {
         <Layout title="">
             <div className="auth-wrap">
                 <div className="auth-card auth-card-mobile">
-                    <div className="auth-bubble">📍</div>
+                    {/*<div className="auth-bubble">📍</div>*/}
 
                     <h2 className="auth-title">Welcome to EasyPark</h2>
                     <p className="auth-subtitle">Sign in to continue</p>

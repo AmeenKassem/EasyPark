@@ -32,6 +32,11 @@ public class Parking {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(nullable = false)
+    private double averageRating = 0.0;
+
+    @Column(nullable = false)
+    private int ratingCount = 0;
 
     @Enumerated(EnumType.STRING)
     private AvailabilityType availabilityType; // SPECIFIC or RECURRING
@@ -96,4 +101,9 @@ public class Parking {
     public void setActive(boolean active) { this.active = active; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public double getAverageRating() { return averageRating; }
+    public void setAverageRating(double averageRating) { this.averageRating = averageRating; }
+
+    public int getRatingCount() { return ratingCount; }
+    public void setRatingCount(int ratingCount) { this.ratingCount = ratingCount; }
 }
