@@ -22,6 +22,8 @@ public class ParkingResponse {
     private String availabilityType; // "SPECIFIC" or "RECURRING"
     private List<SpecificSlotResponse> specificAvailability;
     private List<RecurringScheduleResponse> recurringSchedule;
+    private double averageRating;
+    private int ratingCount;
 
     public static ParkingResponse from(Parking p) {
         ParkingResponse r = new ParkingResponse();
@@ -33,6 +35,8 @@ public class ParkingResponse {
         r.pricePerHour = p.getPricePerHour();
         r.covered = p.isCovered();
         r.active = p.isActive();
+        r.averageRating = p.getAverageRating();
+        r.ratingCount = p.getRatingCount();
 
         // Map Availability
         if (p.getAvailabilityType() != null) {
@@ -101,4 +105,6 @@ public class ParkingResponse {
     public String getAvailabilityType() { return availabilityType; }
     public List<SpecificSlotResponse> getSpecificAvailability() { return specificAvailability; }
     public List<RecurringScheduleResponse> getRecurringSchedule() { return recurringSchedule; }
+    public double getAverageRating() { return averageRating; }
+    public int getRatingCount() { return ratingCount; }
 }

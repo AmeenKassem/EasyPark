@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api'
 import axios from 'axios'
+import { getAuthToken } from "../../services/session";
 
 const containerStyle = { width: '100%', height: '100%' }
 const defaultCenter = { lat: 32.0853, lng: 34.7818 }
@@ -56,7 +57,15 @@ const btnStyleRequest = {
     fontSize: '15px',
     width: '100%',
 }
-
+const btnStyleRate = {
+    backgroundColor: '#f3f4f6',
+    color: 'black',
+    border: 'none',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 700,
+}
 export default function MapComponent({
                                          spots = null,
                                          center = defaultCenter,
@@ -72,7 +81,8 @@ export default function MapComponent({
 
     const [myLocation, setMyLocation] = useState(null)
     const [mapCenter, setMapCenter] = useState(center)
-
+    const [ratingMessage, setRatingMessage] = useState('')
+    const [isSubmittingRating, setIsSubmittingRating] = useState(false)
     const { isLoaded, loadError } = useJsApiLoader({
         id: 'easypark-google-maps',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY,
@@ -190,7 +200,48 @@ export default function MapComponent({
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
+    const handleRateSpot = async (spotId, rating) => {
+        try {
+            setRatingMessage('')
+            setIsSubmittingRating(true)
 
+            const token = getAuthToken()
+
+            const res = await axios.post(
+                `http://localhost:8080/api/parking-spots/${spotId}/rate`,
+                { rating },
+                {
+                    headers: token
+                        ? { Authorization: `Bearer ${token}` }
+                        : {}
+                }
+            )
+
+            const updatedSpot = res.data
+
+            setSelectedSpot(updatedSpot)
+
+            if (!Array.isArray(spots)) {
+                setApiSpots(prev =>
+                    prev.map(s => s.id === updatedSpot.id ? updatedSpot : s)
+                )
+            }
+
+            setRatingMessage('Rating submitted successfully')
+        } catch (e) {
+            console.error('Error rating parking spot:', e)
+            console.error('Response status:', e?.response?.status)
+            console.error('Response data:', e?.response?.data)
+
+            setRatingMessage(
+                e?.response?.data?.message ||
+                e?.response?.data?.error ||
+                'Failed to submit rating'
+            )
+        } finally {
+            setIsSubmittingRating(false)
+        }
+    }
     const onLoad = (map) => {
         mapRef.current = map
         if (onMapLoad) {
@@ -288,6 +339,7 @@ export default function MapComponent({
                         key={spot.id ?? `${spot.lat}-${spot.lng}`}
                         position={{ lat: Number(spot.lat), lng: Number(spot.lng) }}
                         onClick={() => {
+                            setRatingMessage('')
                             setSelectedSpot(spot)
                         }}
                     />
@@ -296,7 +348,10 @@ export default function MapComponent({
                 {selectedSpot && (
                     <InfoWindow
                         position={{ lat: Number(selectedSpot.lat), lng: Number(selectedSpot.lng) }}
-                        onCloseClick={() => setSelectedSpot(null)}
+                        onCloseClick={() => {
+                            setRatingMessage('')
+                            setSelectedSpot(null)
+                        }}
                     >
                         <div style={{ minWidth: 250 }}>
                             <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
@@ -314,7 +369,52 @@ export default function MapComponent({
                                     <strong>Covered:</strong> {selectedSpot.covered ? 'Yes' : 'No'}
                                 </p>
                             )}
+                            <p style={{ margin: '6px 0', color: 'black' }}>
+                                <strong>Rating:</strong>{' '}
+                                {selectedSpot.ratingCount > 0
+                                    ? `${Number(selectedSpot.averageRating).toFixed(1)} / 5 (${selectedSpot.ratingCount} ratings)`
+                                    : 'No ratings yet'}
+                            </p>
+                            {!isMine && (
+                                <div style={{ marginTop: 10 }}>
+                                    <p style={{ margin: '6px 0', color: 'black', fontWeight: 'bold' }}>
+                                        Rate this parking:
+                                    </p>
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => handleRateSpot(selectedSpot.id, star)}
+                                                style={{
+                                                    ...btnStyleRate,
+                                                    opacity: isSubmittingRating ? 0.6 : 1,
+                                                    cursor: isSubmittingRating ? 'not-allowed' : 'pointer'
+                                                }}
+                                                disabled={isSubmittingRating}
+                                            >
+                                                {star}★
+                                            </button>
+                                        ))}
+                                    </div>
 
+                                    {ratingMessage && (
+                                        <div
+                                            style={{
+                                                marginTop: 10,
+                                                padding: '8px 10px',
+                                                borderRadius: '8px',
+                                                backgroundColor: '#f3f4f6',
+                                                color: '#111827',
+                                                fontSize: '14px',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            {ratingMessage}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                                 <button
                                     type="button"
@@ -359,9 +459,11 @@ export default function MapComponent({
                                 </div>
                             )}
                         </div>
+
                     </InfoWindow>
                 )}
             </GoogleMap>
         </div>
     )
+
 }
