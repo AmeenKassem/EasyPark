@@ -198,17 +198,18 @@ public class ParkingService {
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-
-        if (parkingRatingRepository.existsByParkingIdAndUserId(parkingId, userId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
-        }
+        // In order to make it rate as much as you want, comment this block
+//        if (parkingRatingRepository.existsByParkingIdAndUserId(parkingId, userId)) {
+//            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
+//        }
 
         try {
-            ParkingRating parkingRating = new ParkingRating();
-            parkingRating.setParkingId(parkingId);
-            parkingRating.setUserId(userId);
-            parkingRating.setRating(rating);
-            parkingRatingRepository.saveAndFlush(parkingRating);
+            // In order to make it rate as much as you want, comment this block
+//            ParkingRating parkingRating = new ParkingRating();
+//            parkingRating.setParkingId(parkingId);
+//            parkingRating.setUserId(userId);
+//            parkingRating.setRating(rating);
+//            parkingRatingRepository.saveAndFlush(parkingRating);
 
             double oldAverage = p.getAverageRating();
             int oldCount = p.getRatingCount();
