@@ -6,7 +6,6 @@ import com.example.demo.dto.UpdateParkingRequest;
 import com.example.demo.model.*;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -198,35 +197,39 @@ public class ParkingService {
         if (rating < 1 || rating > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
-        // In order to make it rate as much as you want, comment this block
-        if (parkingRatingRepository.existsByParkingIdAndUserId(parkingId, userId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
-        }
 
-        try {
-            // In order to make it rate as much as you want, comment this block
-            ParkingRating parkingRating = new ParkingRating();
+        ParkingRating parkingRating = parkingRatingRepository
+                .findByParkingIdAndUserId(parkingId, userId)
+                .orElse(null);
+
+        boolean isUpdate = parkingRating != null;
+
+        if (!isUpdate) {
+            parkingRating = new ParkingRating();
             parkingRating.setParkingId(parkingId);
             parkingRating.setUserId(userId);
-            parkingRating.setRating(rating);
-            parkingRatingRepository.saveAndFlush(parkingRating);
-
-            double oldAverage = p.getAverageRating();
-            int oldCount = p.getRatingCount();
-
-            double newAverage = ((oldAverage * oldCount) + rating) / (oldCount + 1);
-
-            p.setAverageRating(newAverage);
-            p.setRatingCount(oldCount + 1);
-
-            Parking saved = parkingRepository.save(p);
-
-            log.info("action=parking_rate success userId={} parkingId={} rating={} newAverage={} ratingCount={}",
-                    userId, parkingId, rating, saved.getAverageRating(), saved.getRatingCount());
-
-            return saved;
-        } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already rated this parking spot");
         }
+
+        parkingRating.setRating(rating);
+        parkingRatingRepository.saveAndFlush(parkingRating);
+
+        List<ParkingRating> allRatings = parkingRatingRepository.findByParkingId(parkingId);
+
+        int count = allRatings.size();
+        double sum = allRatings.stream()
+                .mapToInt(ParkingRating::getRating)
+                .sum();
+
+        double average = count == 0 ? 0.0 : sum / count;
+
+        p.setRatingCount(count);
+        p.setAverageRating(average);
+
+        Parking saved = parkingRepository.save(p);
+
+        log.info("action=parking_rate success userId={} parkingId={} rating={} updated={} newAverage={} ratingCount={}",
+                userId, parkingId, rating, isUpdate, saved.getAverageRating(), saved.getRatingCount());
+
+        return saved;
     }
 }
