@@ -86,15 +86,22 @@ export const router = createBrowserRouter([
     },
 
     {
-            path: '/stats',
-            element: (
-                <RequireRole allow={['DRIVER']}>
-                    <StatsPage />
-                </RequireRole>
-            ),
-        },
+        path: '/revenues',
+        element: (
+            <RequireRole allow={['DRIVER', 'OWNER']}>
+                <StatsPage />
+            </RequireRole>
+        ),
+    },
 
-
+    {
+        path: '/expenses',
+        element: (
+            <RequireRole allow={['DRIVER']}>
+                <StatsPage />
+            </RequireRole>
+        ),
+    },
 
 
     {
