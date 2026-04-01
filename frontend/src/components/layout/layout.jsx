@@ -341,12 +341,12 @@ export default function Layout({ title, children }) {
                             </button>
                         )}
 
-                        {/* --- reports BUTTON --- */}
+                        {/* --- revenues / expenses BUTTONS --- */}
                         <button
                             type="button"
                             onClick={() => {
                                 setProfileMenuOpen(false)
-                                nav('/stats')
+                                nav('/revenues')
                             }}
                             style={{
                                 width: '100%',
@@ -365,7 +365,33 @@ export default function Layout({ title, children }) {
                             onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
                             onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
                         >
-                            My Statistics
+                            My Revenues
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setProfileMenuOpen(false)
+                                nav('/expenses')
+                            }}
+                            style={{
+                                width: '100%',
+                                height: 42,
+                                borderRadius: 12,
+                                border: 0,
+                                background: 'transparent',
+                                textAlign: 'left',
+                                padding: '0 12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                color: '#1e293b',
+                                marginBottom: '5px',
+                                transition: 'background 0.2s',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            My Expenses
                         </button>
 
                         <button
