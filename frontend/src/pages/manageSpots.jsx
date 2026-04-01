@@ -305,10 +305,6 @@ export default function ManageSpotsPage() {
                         <div className="ep-ms-statValue">{activeCount}</div>
                     </div>
 
-                    <div className="ep-ms-statCard">
-                        <div className="ep-ms-statLabel">Upcoming Bookings</div>
-                        <div className="ep-ms-statValue">{upcomingBookings}</div>
-                    </div>
                 </div>
 
                 <div className="ep-ms-tabs">
