@@ -12,7 +12,8 @@ import ManageProfilePage from '../pages/manage-profile'
 import ChangePasswordPage from '../pages/ChangePasswordPage.jsx'
 import MyBookingsPage from '../pages/MyBookingsPage.jsx'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
-import StatsPage from '../pages/StatsPage.jsx'
+import RevenuesPage from '../pages/RevenuesPage.jsx'
+import ExpensesPage from '../pages/ExpensesPage.jsx'
 
 import RequireRole from '../components/auth/RequireRole.jsx'
 
@@ -89,7 +90,7 @@ export const router = createBrowserRouter([
         path: '/revenues',
         element: (
             <RequireRole allow={['DRIVER', 'OWNER']}>
-                <StatsPage />
+                <RevenuesPage />
             </RequireRole>
         ),
     },
@@ -98,7 +99,7 @@ export const router = createBrowserRouter([
         path: '/expenses',
         element: (
             <RequireRole allow={['DRIVER']}>
-                <StatsPage />
+                <ExpensesPage />
             </RequireRole>
         ),
     },
