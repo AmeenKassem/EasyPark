@@ -407,14 +407,19 @@ export default function ManageSpotsPage() {
                                         }}>
                                             {/* Decorative Top Bar / Image Placeholder */}
                                             <div style={{
-                                                height: '80px',
-                                                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                position: 'relative'
+                                                height: '140px',
+                                                position: 'relative',
+                                                backgroundColor: '#f8fafc'
                                             }}>
-                                                <span style={{ fontSize: '32px' }}>🅿️</span>
+                                                <img
+                                                    src="/spot.png"
+                                                    alt="Parking Spot"
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover'
+                                                    }}
+                                                />
                                                 {spot.covered && (
                                                     <div style={{
                                                         position: 'absolute',
@@ -426,7 +431,8 @@ export default function ManageSpotsPage() {
                                                         fontWeight: '700',
                                                         padding: '4px 8px',
                                                         borderRadius: '20px',
-                                                        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                                        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                                                        zIndex: 1
                                                     }}>
                                                         ✓ Covered
                                                     </div>
@@ -642,9 +648,13 @@ export default function ManageSpotsPage() {
                     <Modal onClose={() => setDetailsSpot(null)}>
 
                         <div style={{ width: '360px', maxWidth: '90vw', borderRadius: '16px', overflow: 'hidden', margin: '0 auto', backgroundColor: '#fff' }}>
-                            {/* Map Header Placeholder */}
-                            <div style={{ height: '100px', width: '100%', background: 'linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: '40px' }}>🅿️</div>
+                            {/* Map Header Placeholder / Image */}
+                            <div style={{ height: '180px', width: '100%', position: 'relative', borderBottom: '1px solid #e2e8f0' }}>
+                                <img
+                                    src="/spot.png"
+                                    alt="Parking Details"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
                             </div>
 
                             <div style={{ padding: '24px' }}>
