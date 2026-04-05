@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import com.example.demo.repository.ParkingRatingRepository;
+
 @Service
 public class ParkingService {
 
@@ -49,6 +50,9 @@ public class ParkingService {
         p.setCovered(req.isCovered());
         p.setActive(true);
 
+        // --- שמירת שדה התיאור האופציונלי ---
+        p.setDescription(req.getDescription());
+
         handleAvailability(p, req.getAvailabilityType(), req.getSpecificAvailability(), req.getRecurringSchedule());
 
         Parking saved = parkingRepository.save(p);
@@ -66,15 +70,6 @@ public class ParkingService {
         if (!p.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("You are not the owner of this parking spot");
         }
-// Block updates only if there is an APPROVED booking that has not ended yet
-//        if (bookingRepository.existsApprovedNotEndedForParking(parkingId, LocalDateTime.now())) {
-//            throw new ResponseStatusException(
-//                    HttpStatus.CONFLICT,
-//                    "Cannot update spot: there is an approved booking that has not ended yet."
-//            );
-//        }
-
-
 
         // Update basic fields
         p.setLocation(req.getLocation());
@@ -84,9 +79,11 @@ public class ParkingService {
         p.setCovered(req.isCovered());
         p.setActive(req.isActive());
 
-// --- UPDATE AVAILABILITY LOGIC ---
-// Only overwrite availability if the client explicitly sent availabilityType.
-// (Quick edits from ManageSpots should NOT include availabilityType.)
+        // --- עדכון שדה התיאור האופציונלי ---
+        p.setDescription(req.getDescription());
+
+        // --- UPDATE AVAILABILITY LOGIC ---
+        // Only overwrite availability if the client explicitly sent availabilityType.
         if (req.getAvailabilityType() != null) {
             p.getAvailabilityList().clear(); // orphanRemoval deletes rows
             handleAvailability(p,
@@ -94,7 +91,6 @@ public class ParkingService {
                     req.getSpecificAvailability(),
                     req.getRecurringSchedule());
         }
-
 
         Parking saved = parkingRepository.save(p);
         log.info("action=parking_update_service success ownerId={} parkingId={}", ownerId, saved.getId());
@@ -168,16 +164,15 @@ public class ParkingService {
                 .filter(p -> maxPrice == null || p.getPricePerHour() <= maxPrice)
                 .toList();
     }
+
     public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice) {
         return search(covered, minPrice, maxPrice, null, null);
     }
-
 
     public List<BookedIntervalResponse> getBusyIntervals(Long parkingId, LocalDateTime from, LocalDateTime to) {
         Parking p = parkingRepository.findById(parkingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
 
-        // FIX: Removed p.getAvailableFrom() usage as fields are deleted.
         // Default to +/- 1 year if params missing
         LocalDateTime effectiveFrom = (from != null) ? from : LocalDateTime.now().minusYears(1);
         LocalDateTime effectiveTo = (to != null) ? to : LocalDateTime.now().plusYears(1);
@@ -189,6 +184,7 @@ public class ParkingService {
         List<Booking> overlaps = bookingRepository.findOverlaps(parkingId, effectiveFrom, effectiveTo, BUSY_STATUSES);
         return overlaps.stream().map(BookedIntervalResponse::from).toList();
     }
+
     @Transactional
     public Parking rateParking(Long userId, Long parkingId, int rating) {
         Parking p = parkingRepository.findById(parkingId)

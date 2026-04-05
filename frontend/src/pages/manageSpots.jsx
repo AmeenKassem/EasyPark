@@ -32,6 +32,7 @@ function statusBadgeStyle(status) {
 function normalizeSpotForUpdate(spot, overrides = {}) {
     const payload = {
         location: spot.location ?? '',
+        description: spot.description ?? null,
         lat: spot.lat ?? null,
         lng: spot.lng ?? null,
         pricePerHour: Number(spot.pricePerHour),
@@ -80,23 +81,6 @@ export default function ManageSpotsPage() {
     const [editAvailabilitySpot, setEditAvailabilitySpot] = useState(null)
 
     const activeCount = useMemo(() => spots.filter((s) => !!s.active).length, [spots])
-    // const lockedSpotIds = useMemo(() => {
-    //     const now = Date.now()
-    //
-    //     return new Set(
-    //         bookings
-    //             .filter((b) => String(b.status || '').toUpperCase() === 'APPROVED')
-    //             .filter((b) => {
-    //                 const end = b?.endTime ? new Date(b.endTime).getTime() : NaN
-    //                 return Number.isFinite(end) && end > now
-    //             })
-    //             .map((b) => b.parkingId)
-    //     )
-    // }, [bookings])
-
-
-    const totalEarnings = 0 // Placeholder logic
-    const upcomingBookings = 0 // Placeholder logic
 
     const fetchOwnerBookings = async () => {
         setBookingsLoading(true)
@@ -180,11 +164,6 @@ export default function ManageSpotsPage() {
     }, [])
 
     const openEditFor = (spot) => {
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
-
         setEditError('')
         setEditSpot(spot)
         setEditForm({
@@ -194,12 +173,9 @@ export default function ManageSpotsPage() {
         })
         setEditOpen(true)
     }
+
     const openEditAvailabilityFor = (spot) => {
         setError('')
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
         setEditAvailabilitySpot(spot)
         setEditAvailabilityOpen(true)
     }
@@ -240,11 +216,6 @@ export default function ManageSpotsPage() {
     }
 
     const toggleActive = async (spot) => {
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
-
         setError('')
         try {
             const payload = normalizeSpotForUpdate(spot, { active: !spot.active })
@@ -417,7 +388,7 @@ export default function ManageSpotsPage() {
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '20px' }}>
                                 {spots.map((spot) => {
-                                    const locked = false//lockedSpotIds.has(spot.id)
+                                    const locked = false
 
                                     const title = spot.location?.toString().split(',')[0]?.trim() || 'Parking Spot'
                                     const fullAddress = spot.location || ''
@@ -526,24 +497,6 @@ export default function ManageSpotsPage() {
 
                                                     {/* Edit / Details Buttons */}
                                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                                        {/*<button*/}
-                                                        {/*    onClick={() => openEditFor(spot)}*/}
-                                                        {/*    disabled={locked}*/}
-                                                        {/*    style={{*/}
-                                                        {/*        background: 'transparent',*/}
-                                                        {/*        border: '1px solid #e2e8f0',*/}
-                                                        {/*        borderRadius: '8px',*/}
-                                                        {/*        padding: '6px 10px',*/}
-                                                        {/*        fontSize: '12px',*/}
-                                                        {/*        fontWeight: '600',*/}
-                                                        {/*        color: '#475569',*/}
-                                                        {/*        cursor: locked ? 'not-allowed' : 'pointer',*/}
-                                                        {/*        transition: 'all 0.2s',*/}
-                                                        {/*        opacity: locked ? 0.55 : 1,*/}
-                                                        {/*    }}*/}
-                                                        {/*>*/}
-                                                        {/*    Edit*/}
-                                                        {/*</button>*/}
                                                         <button
                                                             onClick={() => openEditAvailabilityFor(spot)}
                                                             disabled={locked}
@@ -697,6 +650,13 @@ export default function ManageSpotsPage() {
                             <div style={{ padding: '24px' }}>
                                 <h2 style={{ marginTop: 0, marginBottom: '4px', fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{detailsSpot.location?.split(',')[0]}</h2>
                                 <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.5' }}>{detailsSpot.location}</p>
+
+                                {/* --- הצגת תיאור החנייה במידה ויש --- */}
+                                {detailsSpot.description && (
+                                    <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>
+                                        "{detailsSpot.description}"
+                                    </p>
+                                )}
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
                                     <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>

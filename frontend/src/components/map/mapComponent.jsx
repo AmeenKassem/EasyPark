@@ -24,7 +24,7 @@ const locateBtnStyle = {
     padding: 0,
 }
 
-// --- עיצובים עדינים ורכים לכפתורים ---
+
 const btnStyleWaze = {
     backgroundColor: '#cffafe',
     color: '#0f172a',
@@ -91,7 +91,7 @@ const btnStyleRate = {
     fontWeight: 700,
 }
 
-// --- קומפוננטת החלונית לחנייה (עם התמונה והתיאור) ---
+
 function SpotDetailModal({ spot, onClose }) {
     if (!spot) return null;
 
@@ -101,27 +101,44 @@ function SpotDetailModal({ spot, onClose }) {
         }
     };
 
+
+    const infoBoxStyle = {
+        fontSize: '14px',
+        color: '#475569',
+        lineHeight: '1.5',
+        background: '#f8fafc',
+        padding: '12px',
+        borderRadius: '10px',
+        border: '1px solid #e2e8f0'
+    };
+
     return (
         <div
             onClick={handleOverlayClick}
             style={{
                 position: 'fixed',
                 inset: 0,
-                background: 'rgba(0,0,0,0.4)',
-                zIndex: 100000,
+                background: 'rgba(0,0,0,0.5)',
+                zIndex: 999999,
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 justifyContent: 'center',
                 backdropFilter: 'blur(3px)',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                paddingTop: '180px',
+                paddingLeft: '20px',
+                paddingRight: '20px',
+                paddingBottom: '20px'
             }}
         >
             <div style={{
                 background: 'white',
                 padding: '24px',
                 borderRadius: '20px',
-                width: '90%',
+                width: '100%',
                 maxWidth: '400px',
+                maxHeight: 'calc(100vh - 200px)', // הותאם כדי שהחלונית לא תחתך מלמטה
+                overflowY: 'auto',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 position: 'relative',
                 cursor: 'default'
@@ -156,32 +173,26 @@ function SpotDetailModal({ spot, onClose }) {
                         borderRadius: '12px',
                         marginBottom: '16px',
                         objectFit: 'cover',
-                        maxHeight: '220px',
+                        maxHeight: '200px',
                         border: '1px solid #f1f5f9'
                     }}
                 />
 
-                {/* תצוגת תיאור החנייה (אם קיים) */}
-                {spot.description && (
-                    <div style={{
-                        fontSize: '14px',
-                        color: '#475569',
-                        marginBottom: '16px',
-                        lineHeight: '1.5',
-                        background: '#f8fafc',
-                        padding: '12px',
-                        borderRadius: '10px',
-                        border: '1px solid #e2e8f0'
-                    }}>
-                        "{spot.description}"
-                    </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-                {typeof spot.covered === 'boolean' && (
-                    <div style={{ fontSize: '14px', color: '#334155' }}>
-                        <strong>Covered:</strong> {spot.covered ? 'Yes' : 'No'}
-                    </div>
-                )}
+                    {spot.description && (
+                        <div style={infoBoxStyle}>
+                            <strong style={{ color: '#0f172a' }}>Description:</strong> {spot.description}
+                        </div>
+                    )}
+
+
+                    {typeof spot.covered === 'boolean' && (
+                        <div style={infoBoxStyle}>
+                            <strong style={{ color: '#0f172a' }}>Covered:</strong> {spot.covered ? 'Yes' : 'No'}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -202,7 +213,7 @@ export default function MapComponent({
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
 
-    // סטייט לחלונית התמונה החדשה
+
     const [detailModalSpot, setDetailModalSpot] = useState(null)
 
     const [myLocation, setMyLocation] = useState(null)
@@ -598,7 +609,7 @@ export default function MapComponent({
                 )}
             </GoogleMap>
 
-            {/* חלונית התמונה החדשה */}
+
             <SpotDetailModal
                 spot={detailModalSpot}
                 onClose={() => setDetailModalSpot(null)}
