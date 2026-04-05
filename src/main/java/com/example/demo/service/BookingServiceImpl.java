@@ -145,9 +145,23 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
+
     @Override
     public List<Booking> listMine(Long driverId) {
-        return bookingRepository.findMine(driverId);
+
+        List<Booking> bookings = bookingRepository.findMine(driverId);
+
+        // owner phone
+        for (Booking booking : bookings) {
+            if (booking.getParking() != null && booking.getParking().getOwnerId() != null) {
+                Long ownerId = booking.getParking().getOwnerId();
+                userRepository.findById(ownerId).ifPresent(owner -> {
+                    booking.setOwnerPhone(owner.getPhone());
+                });
+            }
+        }
+
+        return bookings;
     }
 
     @Override

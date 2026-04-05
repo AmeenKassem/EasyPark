@@ -6,7 +6,6 @@ import com.example.demo.dto.UpdateParkingRequest;
 import com.example.demo.model.*;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import com.example.demo.repository.ParkingRatingRepository;
 
 @Service
 public class ParkingService {
@@ -27,12 +27,16 @@ public class ParkingService {
 
     private final ParkingRepository parkingRepository;
     private final BookingRepository bookingRepository;
+    private final ParkingRatingRepository parkingRatingRepository;
     private static final Collection<BookingStatus> BUSY_STATUSES =
             List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
 
-    public ParkingService(ParkingRepository parkingRepository, BookingRepository bookingRepository) {
+    public ParkingService(ParkingRepository parkingRepository,
+                          BookingRepository bookingRepository,
+                          ParkingRatingRepository parkingRatingRepository) {
         this.parkingRepository = parkingRepository;
         this.bookingRepository = bookingRepository;
+        this.parkingRatingRepository = parkingRatingRepository;
     }
 
     @Transactional
@@ -45,6 +49,9 @@ public class ParkingService {
         p.setPricePerHour(req.getPricePerHour());
         p.setCovered(req.isCovered());
         p.setActive(true);
+
+        // --- שמירת שדה התיאור האופציונלי ---
+        p.setDescription(req.getDescription());
 
         handleAvailability(p, req.getAvailabilityType(), req.getSpecificAvailability(), req.getRecurringSchedule());
 
@@ -63,15 +70,6 @@ public class ParkingService {
         if (!p.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("You are not the owner of this parking spot");
         }
-// Block updates only if there is an APPROVED booking that has not ended yet
-//        if (bookingRepository.existsApprovedNotEndedForParking(parkingId, LocalDateTime.now())) {
-//            throw new ResponseStatusException(
-//                    HttpStatus.CONFLICT,
-//                    "Cannot update spot: there is an approved booking that has not ended yet."
-//            );
-//        }
-
-
 
         // Update basic fields
         p.setLocation(req.getLocation());
@@ -81,9 +79,11 @@ public class ParkingService {
         p.setCovered(req.isCovered());
         p.setActive(req.isActive());
 
-// --- UPDATE AVAILABILITY LOGIC ---
-// Only overwrite availability if the client explicitly sent availabilityType.
-// (Quick edits from ManageSpots should NOT include availabilityType.)
+        // --- עדכון שדה התיאור האופציונלי ---
+        p.setDescription(req.getDescription());
+
+        // --- UPDATE AVAILABILITY LOGIC ---
+        // Only overwrite availability if the client explicitly sent availabilityType.
         if (req.getAvailabilityType() != null) {
             p.getAvailabilityList().clear(); // orphanRemoval deletes rows
             handleAvailability(p,
@@ -91,7 +91,6 @@ public class ParkingService {
                     req.getSpecificAvailability(),
                     req.getRecurringSchedule());
         }
-
 
         Parking saved = parkingRepository.save(p);
         log.info("action=parking_update_service success ownerId={} parkingId={}", ownerId, saved.getId());
@@ -142,7 +141,22 @@ public class ParkingService {
         return parkingRepository.findByOwnerId(ownerId);
     }
 
-    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice) {
+    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice,
+                                LocalDateTime from, LocalDateTime to) {
+
+        // base filters + availability by bookings
+        if (from != null && to != null) {
+            if (!from.isBefore(to)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from must be before to");
+            }
+            return parkingRepository.searchAvailable(
+                    covered, minPrice, maxPrice,
+                    from, to,
+                    BUSY_STATUSES
+            );
+        }
+
+        // fallback: no time filter, return active + basic filters
         return parkingRepository.findAll().stream()
                 .filter(Parking::isActive)
                 .filter(p -> covered == null || p.isCovered() == covered)
@@ -151,11 +165,14 @@ public class ParkingService {
                 .toList();
     }
 
+    public List<Parking> search(Boolean covered, Double minPrice, Double maxPrice) {
+        return search(covered, minPrice, maxPrice, null, null);
+    }
+
     public List<BookedIntervalResponse> getBusyIntervals(Long parkingId, LocalDateTime from, LocalDateTime to) {
         Parking p = parkingRepository.findById(parkingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
 
-        // FIX: Removed p.getAvailableFrom() usage as fields are deleted.
         // Default to +/- 1 year if params missing
         LocalDateTime effectiveFrom = (from != null) ? from : LocalDateTime.now().minusYears(1);
         LocalDateTime effectiveTo = (to != null) ? to : LocalDateTime.now().plusYears(1);
@@ -166,5 +183,49 @@ public class ParkingService {
 
         List<Booking> overlaps = bookingRepository.findOverlaps(parkingId, effectiveFrom, effectiveTo, BUSY_STATUSES);
         return overlaps.stream().map(BookedIntervalResponse::from).toList();
+    }
+
+    @Transactional
+    public Parking rateParking(Long userId, Long parkingId, int rating) {
+        Parking p = parkingRepository.findById(parkingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parking spot not found"));
+
+        if (rating < 1 || rating > 5) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
+        }
+
+        ParkingRating parkingRating = parkingRatingRepository
+                .findByParkingIdAndUserId(parkingId, userId)
+                .orElse(null);
+
+        boolean isUpdate = parkingRating != null;
+
+        if (!isUpdate) {
+            parkingRating = new ParkingRating();
+            parkingRating.setParkingId(parkingId);
+            parkingRating.setUserId(userId);
+        }
+
+        parkingRating.setRating(rating);
+        parkingRatingRepository.saveAndFlush(parkingRating);
+
+        List<ParkingRating> allRatings = parkingRatingRepository.findByParkingId(parkingId);
+
+        int count = allRatings.size();
+        double sum = allRatings.stream()
+                .mapToInt(ParkingRating::getRating)
+                .sum();
+
+        double average = count == 0 ? 0.0 : sum / count;
+
+        p.setRatingCount(count);
+        p.setAverageRating(average);
+
+        Parking saved = parkingRepository.save(p);
+
+        log.info("action=parking_rate success userId={} parkingId={} rating={} updated={} newAverage={} ratingCount={}",
+                userId, parkingId, rating, isUpdate, saved.getAverageRating(), saved.getRatingCount());
+
+        return saved;
     }
 }

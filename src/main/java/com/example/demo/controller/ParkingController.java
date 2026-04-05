@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.demo.dto.RateParkingRequest;
 
 @RestController
 @RequestMapping("/api/parking-spots")
@@ -92,16 +93,15 @@ public class ParkingController {
     public ResponseEntity<List<ParkingResponse>> search(
             @RequestParam(required = false) Boolean covered,
             @RequestParam(required = false) Double minPrice,
-            @RequestParam(required = false) Double maxPrice
+            @RequestParam(required = false) Double maxPrice,
+            @RequestParam(required = false) LocalDateTime from,
+            @RequestParam(required = false) LocalDateTime to
     ) {
-        log.info("action=parking_search start covered={} minPrice={} maxPrice={}", covered, minPrice, maxPrice);
-
-        List<ParkingResponse> out = parkingService.search(covered, minPrice, maxPrice)
+        List<ParkingResponse> out = parkingService.search(covered, minPrice, maxPrice, from, to)
                 .stream().map(ParkingResponse::from).toList();
-
-        log.info("action=parking_search success count={}", out.size());
         return ResponseEntity.ok(out);
     }
+
     @GetMapping("/{id}/busy")
     public ResponseEntity<List<BookedIntervalResponse>> busy(
             @PathVariable Long id,
@@ -114,6 +114,19 @@ public class ParkingController {
 
         log.info("action=parking_busy success parkingId={} count={}", id, out.size());
         return ResponseEntity.ok(out);
+    }
+    @PreAuthorize("hasAnyRole('DRIVER','BOTH')")
+    @PostMapping("/{id}/rate")
+    public ResponseEntity<ParkingResponse> rateParking(@PathVariable Long id,
+                                                       @Valid @RequestBody RateParkingRequest req,
+                                                       Authentication auth) {
+        Long userId = currentUserId(auth);
+        log.info("action=parking_rate start userId={} parkingId={} rating={}", userId, id, req.getRating());
+
+        Parking p = parkingService.rateParking(userId, id, req.getRating());
+
+        log.info("action=parking_rate success userId={} parkingId={}", userId, id);
+        return ResponseEntity.ok(ParkingResponse.from(p));
     }
 
 }

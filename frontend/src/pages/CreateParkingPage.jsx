@@ -1,22 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
+
 import axios from 'axios';
 import AddressAutocomplete from '../components/forms/AddressAutocomplete';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-
-// --- HELPER: Generate Time Slots (00:00 - 23:59) ---
-const generateTimeOptions = (stepMinutes = 30) => {
-    const times = [];
-    for (let i = 0; i < 24 * 60; i += stepMinutes) {
-        const hours = Math.floor(i / 60);
-        const mins = i % 60;
-        // Force 24H format (e.g., 14:30)
-        const formatted = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-        times.push(formatted);
-    }
-    times.push('23:59'); // Add End-of-Day
-    return times;
-};
+import TimeDropdown from '../components/inputs/TimeDropdown'
+import { generateTimeOptions } from '../utils/timeOptions'
 
 const toYMD = (d) => {
     if (!d) return '';
@@ -25,44 +14,24 @@ const toYMD = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
-
 const splitIsoToDateTime = (iso) => {
     if (!iso) return { date: '', time: '' }
     const s = String(iso)
     const [d, tRaw] = s.split('T')
-    const t = (tRaw || '').slice(0, 5) // "HH:MM"
+    const t = (tRaw || '').slice(0, 5)
     return { date: d || '', time: t || '' }
 }
 
 const normalizeTimeHHMM = (t) => {
     if (!t) return ''
-    return String(t).slice(0, 5) // handles "HH:MM:SS" and "HH:MM"
+    return String(t).slice(0, 5)
 }
-
-// --- NEW HELPERS FOR DATEPICKER TIME ---
-const timeStringToDate = (timeStr) => {
-    if (!timeStr) return null;
-    const date = new Date();
-    const [hours, minutes] = timeStr.split(':');
-    date.setHours(parseInt(hours), parseInt(minutes));
-    date.setSeconds(0);
-    return date;
-};
-
-const dateToTimeString = (date) => {
-    if (!date) return '';
-    // Force 24H string generation
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-};
-
 
 const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', initialSpot = null }) => {
 
-    // --- STATE ---
     const [formData, setFormData] = useState({
         location: '',
+        description: '',
         lat: null,
         lng: null,
         pricePerHour: '',
@@ -92,21 +61,19 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     useEffect(() => {
         if (mode !== 'edit' || !initialSpot) return
 
-        // Basic fields
         setFormData({
             location: initialSpot.location || '',
+            description: initialSpot.description || '',
             lat: initialSpot.lat ?? null,
             lng: initialSpot.lng ?? null,
             pricePerHour: String(initialSpot.pricePerHour ?? ''),
             covered: !!initialSpot.covered,
         })
 
-        // Availability type
         const t = String(initialSpot.availabilityType || '').toLowerCase()
         if (t === 'recurring') setAvailabilityType('recurring')
-        else setAvailabilityType('specific') // default
+        else setAvailabilityType('specific')
 
-        // Specific slots prefill
         if (String(initialSpot.availabilityType || '').toUpperCase() === 'SPECIFIC') {
             const slots = Array.isArray(initialSpot.specificAvailability) ? initialSpot.specificAvailability : []
             const mapped = slots.length
@@ -126,7 +93,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             setSpecificSlots(mapped)
         }
 
-        // Recurring schedule prefill
         if (String(initialSpot.availabilityType || '').toUpperCase() === 'RECURRING') {
             const rec = Array.isArray(initialSpot.recurringSchedule) ? initialSpot.recurringSchedule : []
             const base = {
@@ -155,13 +121,11 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
     const timeOptions = useMemo(() => generateTimeOptions(30), []);
 
-    // --- HELPER: Get Current Time HH:MM ---
     const getCurrentTimeHHMM = () => {
         const now = new Date();
-        return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     };
 
-    // --- VALIDATION LOGIC ---
     const validationErrors = useMemo(() => {
         const errors = [];
         if (!formData.lat || !formData.lng) errors.push("Please select a precise location from the list.");
@@ -181,7 +145,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         return errors;
     }, [formData, availabilityType, specificSlots, weeklySchedule]);
 
-    // --- TIME FILTERS FOR UI ---
     const getStartOptions = () => timeOptions.filter(t => t !== '23:59');
 
     const getValidStartTimes = (selectedDate) => {
@@ -208,7 +171,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         return timeOptions.filter(t => t > startTime);
     };
 
-    // --- HANDLERS ---
     const handleAddressSelect = ({ lat, lng, address, address_components }) => {
         setApiMessage('');
         if (address_components) {
@@ -244,20 +206,19 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             const todayStr = new Date().toISOString().split('T')[0];
             const currentTime = getCurrentTimeHHMM();
 
-            // Sanitize START TIME (vs Today)
             if (newSlot.startDate === todayStr && newSlot.startTime) {
                 if (newSlot.startTime <= currentTime) {
                     newSlot.startTime = '';
                 }
             }
-            // Sanitize END DATE (vs Start Date)
+
             if (newSlot.startDate && newSlot.endDate) {
                 if (newSlot.endDate < newSlot.startDate) {
                     newSlot.endDate = '';
                     newSlot.endTime = '';
                 }
             }
-            // Sanitize END TIME (vs Start Time on same day)
+
             if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
                 if (newSlot.startTime && newSlot.endTime) {
                     if (newSlot.endTime <= newSlot.startTime) {
@@ -328,6 +289,8 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
             let payload = {
                 location: formData.location,
+
+                description: formData.description ? formData.description.trim() : null,
                 lat: formData.lat,
                 lng: formData.lng,
                 pricePerHour: parseFloat(formData.pricePerHour),
@@ -361,18 +324,22 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
             if (mode === 'edit') {
                 if (!initialSpot?.id) throw new Error('Missing spot id for edit.')
+
                 await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 })
+
                 setApiMessage('Success! Parking spot updated.')
                 setTimeout(() => { onUpdated?.(); onClose?.(); }, 700)
             } else {
                 await axios.post(`${API_BASE}/api/parking-spots`, payload, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
                 })
+
                 setApiMessage('Success! Parking spot created.')
                 setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
             }
+
         } catch (error) {
             const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
             setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
@@ -387,45 +354,39 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     return (
         <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
             <style>{`
-      input[type=number]::-webkit-outer-spin-button,
-      input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-      input[type=number] { -moz-appearance: textfield; }
+              input[type=number]::-webkit-outer-spin-button,
+              input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+              input[type=number] { -moz-appearance: textfield; }
 
-      /* Match booking calendar look */
-      .ep-date-wrap { width: 100%; }
-      .ep-date-picker {
-        width: 100%;
-        height: 38px;
-        padding: 0 10px;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        font-size: 13px;
-        outline: none;
-        color: #1e293b;
-        font-family: inherit;
-        background: #fff;
-        box-sizing: border-box;
-      }
-      .ep-date-picker:focus {
-        border-color: #94a3b8;
-      }
-      .react-datepicker {
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
-        overflow: hidden;
-      }
-      .react-datepicker__header {
-        background: #ffffff;
-        border-bottom: 1px solid #f1f5f9;
-      }
-      /* Ensure time list in datepicker is clean */
-      .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item {
-        padding: 8px;
-        display: flex;
-        justify-content: center;
-      }
-    `}</style>
+              .ep-date-wrap { width: 100%; }
+              .ep-date-picker {
+                width: 100%;
+                height: 38px;
+                padding: 0 10px;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+                font-size: 13px;
+                outline: none;
+                color: #1e293b;
+                font-family: inherit;
+                background: #fff;
+                box-sizing: border-box;
+              }
+              .ep-date-picker:focus {
+                border-color: #94a3b8;
+              }
+
+              .react-datepicker {
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+                overflow: hidden;
+              }
+              .react-datepicker__header {
+                background: #ffffff;
+                border-bottom: 1px solid #f1f5f9;
+              }
+            `}</style>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                 <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
@@ -437,6 +398,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             <form onSubmit={handleSubmit}>
                 <div style={groupStyle}>
                     <label style={labelStyle}>Location</label>
+
                     {mode === 'edit' ? (
                         <>
                             <input
@@ -474,10 +436,24 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     )}
                 </div>
 
+
+                <div style={{ ...groupStyle, marginTop: '12px' }}>
+                    <label style={labelStyle}>Description (Optional, up to 80 chars)</label>
+                    <input
+                        type="text"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        maxLength={80}
+                        style={inputStyle}
+                        placeholder="e.g., Covered parking spot near the entrance"
+                    />
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
                     <div style={groupStyle}>
                         <label style={labelStyle}>Price / Hour</label>
-                        <div style={{ ...inputWrapperStyle, padding: '0 8px' }}>
+                        <div style={{...inputWrapperStyle, padding: '0 8px'}}>
                             <button type="button" onClick={() => { const newVal = parseFloat(formData.pricePerHour || 0) - 0.5; if (newVal >= 0) handleChange({ target: { name: 'pricePerHour', value: newVal } }); }} style={stepperBtnStyle}>−</button>
                             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2px' }}>
                                 <input type="number" name="pricePerHour" value={formData.pricePerHour} onChange={handleChange} placeholder="0" style={{ ...inputStyle, border: 'none', textAlign: 'right', fontSize: '18px', fontWeight: 'bold', width: '45px', padding: 0, backgroundColor: 'transparent' }} />
@@ -502,18 +478,18 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     <button type="button" onClick={() => setAvailabilityType('recurring')} style={availabilityType === 'recurring' ? activeTabStyle : inactiveTabStyle}>Weekly Schedule</button>
                 </div>
 
-                {/* Specific Dates Logic */}
                 {availabilityType === 'specific' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '5px' }}>Set the start and end time for when the parking is available.</div>
+                        <div style={{fontSize: '13px', color: '#64748b', marginBottom: '5px'}}>Set the start and end time for when the parking is available.</div>
                         {specificSlots.map((slot) => {
-                            const displayEndTime = slot.endTime;
+                            const validEndTimes = getValidEndTimes(slot.startDate, slot.endDate, slot.startTime);
+                            const isCurrentEndTimeValid = !slot.endTime || validEndTimes.includes(slot.endTime);
+                            const displayEndTime = isCurrentEndTimeValid ? slot.endTime : '';
 
                             return (
                                 <div key={slot.id} style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr auto', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                        <span style={{ ...subLabelStyle, color: '#166534' }}>FROM (Start)</span>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                                        <span style={{...subLabelStyle, color: '#166534'}}>FROM (Start)</span>
                                         <DatePicker
                                             selected={slot.startDate ? new Date(`${slot.startDate}T00:00:00`) : null}
                                             onChange={(d) => updateSpecificSlot(slot.id, 'startDate', d ? toYMD(d) : '')}
@@ -524,25 +500,19 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <DatePicker
-                                            selected={timeStringToDate(slot.startTime)}
-                                            onChange={(date) => updateSpecificSlot(slot.id, 'startTime', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
+                                        <TimeDropdown
+                                            value={slot.startTime}
+                                            onChange={(v) => updateSpecificSlot(slot.id, 'startTime', v)}
+                                            options={getValidStartTimes(slot.startDate)}
+                                            placeholder="--:--"
+                                            disabled={!slot.startDate}
+                                            maxVisible={5}
                                         />
+
                                     </div>
-
                                     <div style={{ textAlign: 'center', color: '#cbd5e1', fontSize: '18px' }}>➝</div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                        <span style={{ ...subLabelStyle, color: '#991b1b' }}>TO (End)</span>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                                        <span style={{...subLabelStyle, color: '#991b1b'}}>TO (End)</span>
                                         <DatePicker
                                             selected={slot.endDate ? new Date(`${slot.endDate}T00:00:00`) : null}
                                             onChange={(d) => updateSpecificSlot(slot.id, 'endDate', d ? toYMD(d) : '')}
@@ -553,26 +523,17 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             wrapperClassName="ep-date-wrap"
                                         />
 
-                                        <DatePicker
-                                            selected={timeStringToDate(displayEndTime)}
-                                            onChange={(date) => updateSpecificSlot(slot.id, 'endTime', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
+                                        <TimeDropdown
+                                            value={displayEndTime}
+                                            onChange={(v) => updateSpecificSlot(slot.id, 'endTime', v)}
+                                            options={validEndTimes}
+                                            placeholder="--:--"
+                                            disabled={!slot.startDate || !slot.endDate || !slot.startTime}
+                                            maxVisible={5}
                                         />
-                                    </div>
 
-                                    {specificSlots.length > 1 && (
-                                        <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>
-                                            &times;
-                                        </button>
-                                    )}
+                                    </div>
+                                    {specificSlots.length > 1 && <button type="button" onClick={() => removeSpecificSlot(slot.id)} style={removeBtnStyle}>&times;</button>}
                                 </div>
                             );
                         })}
@@ -580,7 +541,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     </div>
                 )}
 
-                {/* Recurring Logic - NOW UPDATED TO DATEPICKER */}
                 {availabilityType === 'recurring' && (
                     <div>
                         <label style={labelStyle}>Select Days</label>
@@ -595,38 +555,21 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 <button type="button" onClick={applyBatchTime} style={tinyBtnStyle}>Apply to Selected</button>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-
-                                {/* BATCH START */}
-                                <DatePicker
-                                    selected={timeStringToDate(batchTime.start)}
-                                    onChange={(date) => handleBatchTimeChange('start', dateToTimeString(date))}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    timeCaption="Time"
-                                    dateFormat="HH:mm"
-                                    timeFormat="HH:mm"
-                                    placeholderText="--:--"
-                                    className="ep-date-picker"
-                                    wrapperClassName="ep-date-wrap"
+                                <TimeDropdown
+                                    value={batchTime.start}
+                                    onChange={(v) => handleBatchTimeChange('start', v)}
+                                    options={getStartOptions()}
+                                    placeholder="--:--"
+                                    maxVisible={5}
                                 />
                                 <span style={{ color: '#94a3b8' }}>➜</span>
-
-                                {/* BATCH END */}
-                                <DatePicker
-                                    selected={timeStringToDate(batchTime.end)}
-                                    onChange={(date) => handleBatchTimeChange('end', dateToTimeString(date))}
-                                    minTime={timeStringToDate(batchTime.start)} // Prevent picking earlier time
-                                    maxTime={timeStringToDate("23:59")}
-                                    showTimeSelect
-                                    showTimeSelectOnly
-                                    timeIntervals={30}
-                                    timeCaption="Time"
-                                    dateFormat="HH:mm"
-                                    timeFormat="HH:mm"
-                                    placeholderText="--:--"
-                                    className="ep-date-picker"
-                                    wrapperClassName="ep-date-wrap"
+                                <TimeDropdown
+                                    value={batchTime.end}
+                                    onChange={(v) => handleBatchTimeChange('end', v)}
+                                    options={getValidRecurringEndTimes(batchTime.start)}
+                                    placeholder="--:--"
+                                    disabled={!batchTime.start}
+                                    maxVisible={5}
                                 />
                             </div>
                         </div>
@@ -638,39 +581,21 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                 return (
                                     <div key={dayIndex} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', backgroundColor: '#fff', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                         <div style={{ width: '80px', fontSize: '14px', fontWeight: '600', color: '#334155' }}>{daysFullNames[dayIndex]}</div>
-
-                                        {/* RECURRING START */}
-                                        <DatePicker
-                                            selected={timeStringToDate(dayData.start)}
-                                            onChange={(date) => updateDayTime(dayIndex, 'start', dateToTimeString(date))}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
+                                        <TimeDropdown
+                                            value={dayData.start}
+                                            onChange={(v) => updateDayTime(dayIndex, 'start', v)}
+                                            options={getStartOptions()}
+                                            placeholder="--:--"
+                                            maxVisible={5}
                                         />
-
                                         <span style={{ color: '#cbd5e1' }}>-</span>
-
-                                        {/* RECURRING END */}
-                                        <DatePicker
-                                            selected={timeStringToDate(dayData.end)}
-                                            onChange={(date) => updateDayTime(dayIndex, 'end', dateToTimeString(date))}
-                                            minTime={timeStringToDate(dayData.start)} // Prevent picking earlier time
-                                            maxTime={timeStringToDate("23:59")}
-                                            showTimeSelect
-                                            showTimeSelectOnly
-                                            timeIntervals={30}
-                                            timeCaption="Time"
-                                            dateFormat="HH:mm"
-                                            timeFormat="HH:mm"
-                                            placeholderText="--:--"
-                                            className="ep-date-picker"
-                                            wrapperClassName="ep-date-wrap"
+                                        <TimeDropdown
+                                            value={dayData.end}
+                                            onChange={(v) => updateDayTime(dayIndex, 'end', v)}
+                                            options={getValidRecurringEndTimes(dayData.start)}
+                                            placeholder="--:--"
+                                            disabled={!dayData.start}
+                                            maxVisible={5}
                                         />
                                     </div>
                                 );
@@ -703,13 +628,11 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     );
 };
 
-// --- STYLES ---
 const groupStyle = { display: 'flex', flexDirection: 'column', gap: '6px' };
 const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
 const subLabelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '2px', textTransform: 'uppercase' };
 const inputWrapperStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: '10px', height: '42px', backgroundColor: '#fff', transition: 'border-color 0.2s' };
 const inputStyle = { width: '100%', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px', fontSize: '14px', outline: 'none', color: '#1e293b', fontFamily: 'inherit' };
-const selectStyle = { ...inputStyle, cursor: 'pointer', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '10px' };
 const stepperBtnStyle = { border: 'none', background: 'transparent', color: '#64748b', fontSize: '18px', padding: '0 10px', cursor: 'pointer' };
 const activeTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', fontWeight: '600', color: '#0f172a', cursor: 'default' };
 const inactiveTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', fontWeight: '500' };
