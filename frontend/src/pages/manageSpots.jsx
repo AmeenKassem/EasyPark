@@ -32,6 +32,7 @@ function statusBadgeStyle(status) {
 function normalizeSpotForUpdate(spot, overrides = {}) {
     const payload = {
         location: spot.location ?? '',
+        description: spot.description ?? null,
         lat: spot.lat ?? null,
         lng: spot.lng ?? null,
         pricePerHour: Number(spot.pricePerHour),
@@ -80,23 +81,6 @@ export default function ManageSpotsPage() {
     const [editAvailabilitySpot, setEditAvailabilitySpot] = useState(null)
 
     const activeCount = useMemo(() => spots.filter((s) => !!s.active).length, [spots])
-    // const lockedSpotIds = useMemo(() => {
-    //     const now = Date.now()
-    //
-    //     return new Set(
-    //         bookings
-    //             .filter((b) => String(b.status || '').toUpperCase() === 'APPROVED')
-    //             .filter((b) => {
-    //                 const end = b?.endTime ? new Date(b.endTime).getTime() : NaN
-    //                 return Number.isFinite(end) && end > now
-    //             })
-    //             .map((b) => b.parkingId)
-    //     )
-    // }, [bookings])
-
-
-    const totalEarnings = 0 // Placeholder logic
-    const upcomingBookings = 0 // Placeholder logic
 
     const fetchOwnerBookings = async () => {
         setBookingsLoading(true)
@@ -180,11 +164,6 @@ export default function ManageSpotsPage() {
     }, [])
 
     const openEditFor = (spot) => {
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
-
         setEditError('')
         setEditSpot(spot)
         setEditForm({
@@ -194,12 +173,9 @@ export default function ManageSpotsPage() {
         })
         setEditOpen(true)
     }
+
     const openEditAvailabilityFor = (spot) => {
         setError('')
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
         setEditAvailabilitySpot(spot)
         setEditAvailabilityOpen(true)
     }
@@ -240,11 +216,6 @@ export default function ManageSpotsPage() {
     }
 
     const toggleActive = async (spot) => {
-        // if (lockedSpotIds.has(spot.id)) {
-        //     setError('This spot has an APPROVED booking and cannot be updated.')
-        //     return
-        // }
-
         setError('')
         try {
             const payload = normalizeSpotForUpdate(spot, { active: !spot.active })
@@ -417,7 +388,7 @@ export default function ManageSpotsPage() {
                         ) : (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginTop: '20px' }}>
                                 {spots.map((spot) => {
-                                    const locked = false//lockedSpotIds.has(spot.id)
+                                    const locked = false
 
                                     const title = spot.location?.toString().split(',')[0]?.trim() || 'Parking Spot'
                                     const fullAddress = spot.location || ''
@@ -436,14 +407,19 @@ export default function ManageSpotsPage() {
                                         }}>
                                             {/* Decorative Top Bar / Image Placeholder */}
                                             <div style={{
-                                                height: '80px',
-                                                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                position: 'relative'
+                                                height: '140px',
+                                                position: 'relative',
+                                                backgroundColor: '#f8fafc'
                                             }}>
-                                                <span style={{ fontSize: '32px' }}>🅿️</span>
+                                                <img
+                                                    src="/spot.png"
+                                                    alt="Parking Spot"
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover'
+                                                    }}
+                                                />
                                                 {spot.covered && (
                                                     <div style={{
                                                         position: 'absolute',
@@ -455,7 +431,8 @@ export default function ManageSpotsPage() {
                                                         fontWeight: '700',
                                                         padding: '4px 8px',
                                                         borderRadius: '20px',
-                                                        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                                                        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                                                        zIndex: 1
                                                     }}>
                                                         ✓ Covered
                                                     </div>
@@ -526,24 +503,6 @@ export default function ManageSpotsPage() {
 
                                                     {/* Edit / Details Buttons */}
                                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                                        {/*<button*/}
-                                                        {/*    onClick={() => openEditFor(spot)}*/}
-                                                        {/*    disabled={locked}*/}
-                                                        {/*    style={{*/}
-                                                        {/*        background: 'transparent',*/}
-                                                        {/*        border: '1px solid #e2e8f0',*/}
-                                                        {/*        borderRadius: '8px',*/}
-                                                        {/*        padding: '6px 10px',*/}
-                                                        {/*        fontSize: '12px',*/}
-                                                        {/*        fontWeight: '600',*/}
-                                                        {/*        color: '#475569',*/}
-                                                        {/*        cursor: locked ? 'not-allowed' : 'pointer',*/}
-                                                        {/*        transition: 'all 0.2s',*/}
-                                                        {/*        opacity: locked ? 0.55 : 1,*/}
-                                                        {/*    }}*/}
-                                                        {/*>*/}
-                                                        {/*    Edit*/}
-                                                        {/*</button>*/}
                                                         <button
                                                             onClick={() => openEditAvailabilityFor(spot)}
                                                             disabled={locked}
@@ -689,14 +648,25 @@ export default function ManageSpotsPage() {
                     <Modal onClose={() => setDetailsSpot(null)}>
 
                         <div style={{ width: '360px', maxWidth: '90vw', borderRadius: '16px', overflow: 'hidden', margin: '0 auto', backgroundColor: '#fff' }}>
-                            {/* Map Header Placeholder */}
-                            <div style={{ height: '100px', width: '100%', background: 'linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: '40px' }}>🅿️</div>
+                            {/* Map Header Placeholder / Image */}
+                            <div style={{ height: '180px', width: '100%', position: 'relative', borderBottom: '1px solid #e2e8f0' }}>
+                                <img
+                                    src="/spot.png"
+                                    alt="Parking Details"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
                             </div>
 
                             <div style={{ padding: '24px' }}>
                                 <h2 style={{ marginTop: 0, marginBottom: '4px', fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{detailsSpot.location?.split(',')[0]}</h2>
                                 <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.5' }}>{detailsSpot.location}</p>
+
+                                {/* --- הצגת תיאור החנייה במידה ויש --- */}
+                                {detailsSpot.description && (
+                                    <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>
+                                        "{detailsSpot.description}"
+                                    </p>
+                                )}
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
                                     <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>

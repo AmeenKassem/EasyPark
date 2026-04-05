@@ -5,7 +5,7 @@ import '../styles/auth.css'
 
 function fmt(dt) {
     if (!dt) return ''
-    // dt is ISO like "2026-01-05T10:00:00"
+
     return dt.replace('T', ' ').slice(0, 16)
 }
 
@@ -39,7 +39,7 @@ function canCancelBooking(b) {
     const start = new Date(b.startTime)
     if (Number.isNaN(start.getTime())) return false
 
-    return start > new Date() // only before start time
+    return start > new Date()
 }
 
 
@@ -48,8 +48,6 @@ export default function MyBookingsPage() {
     const [savingId, setSavingId] = useState(null)
     const [items, setItems] = useState([])
     const [feedback, setFeedback] = useState({ message: '', isError: false })
-
-
 
     const upcomingCount = useMemo(() => {
         const now = new Date()
@@ -102,13 +100,11 @@ export default function MyBookingsPage() {
             <div className="auth-wrap" style={{ minHeight: 'calc(100vh - 80px)' }}>
                 <div className="auth-card" style={{ maxWidth: 860, textAlign: 'left' }}>
 
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                         <h1 className="auth-title" style={{ margin: 0 }}>
                             My Bookings
                         </h1>
                     </div>
-
 
                     <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
                         <div style={{ flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -147,6 +143,8 @@ export default function MyBookingsPage() {
                         <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
                             {items.map((b) => {
                                 const canCancel = canCancelBooking(b)
+                                const isApproved = String(b.status || '').toUpperCase() === 'APPROVED'
+
                                 return (
                                     <div
                                         key={b.id}
@@ -190,11 +188,29 @@ export default function MyBookingsPage() {
                                             </span>
                                         </div>
 
-
                                         <div style={{ color: '#334155' }}>
                                             <strong>Start:</strong> {fmt(b.startTime)} &nbsp;&nbsp;
                                             <strong>End:</strong> {fmt(b.endTime)}
                                         </div>
+
+
+                                        {isApproved && (
+                                            <div style={{
+                                                marginTop: 8,
+                                                padding: '8px 12px',
+                                                backgroundColor: '#f0fdf4',
+                                                border: '1px solid #bbf7d0',
+                                                borderRadius: '8px',
+                                                color: '#166534',
+                                                fontSize: '13px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}>
+                                                <span style={{ fontSize: '16px' }}>📞</span>
+                                                <span><strong>Owner Contact:</strong> {b.ownerPhone || 'Not available'}</span>
+                                            </div>
+                                        )}
 
                                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                                             <button

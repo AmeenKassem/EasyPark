@@ -24,39 +24,63 @@ const locateBtnStyle = {
     padding: 0,
 }
 
+
 const btnStyleWaze = {
-    backgroundColor: '#33ccff',
-    color: 'black',
+    backgroundColor: '#cffafe',
+    color: '#0f172a',
     border: 'none',
     padding: '8px 12px',
-    borderRadius: '10px',
+    borderRadius: '20px',
     cursor: 'pointer',
     flex: 1,
-    fontWeight: 800,
+    fontWeight: 600,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '6px'
 }
 
 const btnStyleGoogle = {
-    backgroundColor: '#4285F4',
-    color: 'black',
+    backgroundColor: '#60a5fa',
+    color: 'white',
     border: 'none',
     padding: '8px 12px',
-    borderRadius: '10px',
+    borderRadius: '20px',
     cursor: 'pointer',
     flex: 1,
-    fontWeight: 800,
+    fontWeight: 600,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+}
+
+const btnStyleDetails = {
+    backgroundColor: '#f1f5f9',
+    color: '#0f172a',
+    border: '1px solid #e2e8f0',
+    padding: '10px 12px',
+    borderRadius: '20px',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: '14px',
+    width: '100%',
+    marginBottom: '10px',
+    transition: 'background 0.2s'
 }
 
 const btnStyleRequest = {
-    backgroundColor: '#111827',
-    color: 'white',
+    backgroundColor: '#d1fae5',
+    color: '#065f46',
     border: 'none',
-    padding: '12px',
-    borderRadius: '10px',
+    padding: '10px 12px',
+    borderRadius: '20px',
     cursor: 'pointer',
-    fontWeight: 800,
-    fontSize: '15px',
+    fontWeight: 600,
+    fontSize: '14px',
     width: '100%',
+    transition: 'opacity 0.2s'
 }
+
 const btnStyleRate = {
     backgroundColor: '#f3f4f6',
     color: 'black',
@@ -66,6 +90,116 @@ const btnStyleRate = {
     cursor: 'pointer',
     fontWeight: 700,
 }
+
+
+function SpotDetailModal({ spot, onClose }) {
+    if (!spot) return null;
+
+    const handleOverlayClick = (e) => {
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    };
+
+
+    const infoBoxStyle = {
+        fontSize: '14px',
+        color: '#475569',
+        lineHeight: '1.5',
+        background: '#f8fafc',
+        padding: '12px',
+        borderRadius: '10px',
+        border: '1px solid #e2e8f0'
+    };
+
+    return (
+        <div
+            onClick={handleOverlayClick}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.5)',
+                zIndex: 999999,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                backdropFilter: 'blur(3px)',
+                cursor: 'pointer',
+                paddingTop: '180px',
+                paddingLeft: '20px',
+                paddingRight: '20px',
+                paddingBottom: '20px'
+            }}
+        >
+            <div style={{
+                background: 'white',
+                padding: '24px',
+                borderRadius: '20px',
+                width: '100%',
+                maxWidth: '400px',
+                maxHeight: 'calc(100vh - 200px)', // הותאם כדי שהחלונית לא תחתך מלמטה
+                overflowY: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                position: 'relative',
+                cursor: 'default'
+            }}>
+                <button
+                    onClick={onClose}
+                    style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        background: 'transparent',
+                        border: 'none',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        color: '#94a3b8',
+                        padding: '4px'
+                    }}
+                >
+                    ✕
+                </button>
+
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#0f172a', marginTop: 0 }}>
+                    Spot Details
+                </h2>
+
+                <img
+                    src="/spot.png"
+                    alt="Parking Spot"
+                    style={{
+                        width: '100%',
+                        height: 'auto',
+                        borderRadius: '12px',
+                        marginBottom: '16px',
+                        objectFit: 'cover',
+                        maxHeight: '200px',
+                        border: '1px solid #f1f5f9'
+                    }}
+                />
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                    {spot.description && (
+                        <div style={infoBoxStyle}>
+                            <strong style={{ color: '#0f172a' }}>Description:</strong> {spot.description}
+                        </div>
+                    )}
+
+
+                    {typeof spot.covered === 'boolean' && (
+                        <div style={infoBoxStyle}>
+                            <strong style={{ color: '#0f172a' }}>Covered:</strong> {spot.covered ? 'Yes' : 'No'}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+// ----------------------------------------------
+
+
 export default function MapComponent({
                                          spots = null,
                                          center = defaultCenter,
@@ -78,6 +212,9 @@ export default function MapComponent({
     const mapRef = useRef(null)
     const [apiSpots, setApiSpots] = useState([])
     const [selectedSpot, setSelectedSpot] = useState(null)
+
+
+    const [detailModalSpot, setDetailModalSpot] = useState(null)
 
     const [myLocation, setMyLocation] = useState(null)
     const [mapCenter, setMapCenter] = useState(center)
@@ -190,7 +327,7 @@ export default function MapComponent({
             clickableIcons: false,
             gestureHandling: 'greedy',
         }),
-        [],
+        []
     )
 
     const handleNavigate = (lat, lng, app) => {
@@ -200,6 +337,7 @@ export default function MapComponent({
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
+
     const handleRateSpot = async (spotId, rating) => {
         try {
             setRatingMessage('')
@@ -230,9 +368,6 @@ export default function MapComponent({
             setRatingMessage('Rating submitted successfully')
         } catch (e) {
             console.error('Error rating parking spot:', e)
-            console.error('Response status:', e?.response?.status)
-            console.error('Response data:', e?.response?.data)
-
             setRatingMessage(
                 e?.response?.data?.message ||
                 e?.response?.data?.error ||
@@ -242,6 +377,7 @@ export default function MapComponent({
             setIsSubmittingRating(false)
         }
     }
+
     const onLoad = (map) => {
         mapRef.current = map
         if (onMapLoad) {
@@ -354,22 +490,18 @@ export default function MapComponent({
                         }}
                     >
                         <div style={{ minWidth: 250 }}>
-                            <h3 style={{ margin: '0 0 10px 0',color: 'black' }}>
+                            <h3 style={{ margin: '0 0 10px 0',color: 'black', fontSize: '15px' }}>
                                 {getObscuredAddress(selectedSpot.location)}
                             </h3>
 
                             {selectedSpot.pricePerHour != null && (
-                                <p style={{ margin: '6px 0', color: 'black' }}>
+                                <p style={{ margin: '6px 0', color: 'black', fontSize: '13px' }}>
                                     <strong>Price:</strong> ₪{selectedSpot.pricePerHour}/hr
                                 </p>
                             )}
 
-                            {typeof selectedSpot.covered === 'boolean' && (
-                                <p style={{ margin: '6px 0', color: 'black' }}>
-                                    <strong>Covered:</strong> {selectedSpot.covered ? 'Yes' : 'No'}
-                                </p>
-                            )}
-                            <p style={{ margin: '6px 0', color: 'black' }}>
+
+                            <p style={{ margin: '6px 0', color: 'black', fontSize: '13px' }}>
                                 <strong>Rating:</strong>{' '}
                                 {selectedSpot.ratingCount > 0
                                     ? `${Number(selectedSpot.averageRating).toFixed(1)} / 5 (${selectedSpot.ratingCount} ratings)`
@@ -377,7 +509,7 @@ export default function MapComponent({
                             </p>
                             {!isMine && (
                                 <div style={{ marginTop: 10 }}>
-                                    <p style={{ margin: '6px 0', color: 'black', fontWeight: 'bold' }}>
+                                    <p style={{ margin: '6px 0', color: 'black', fontWeight: 'bold', fontSize: '12px' }}>
                                         Rate this parking:
                                     </p>
                                     <div style={{ display: 'flex', gap: 6 }}>
@@ -415,13 +547,14 @@ export default function MapComponent({
                                     )}
                                 </div>
                             )}
-                            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+
+                            <div style={{ display: 'flex', gap: 8, marginTop: 14, marginBottom: 12 }}>
                                 <button
                                     type="button"
                                     onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'waze')}
                                     style={btnStyleWaze}
                                 >
-                                    Waze
+                                    <span style={{ fontSize: '16px' }}></span> Waze
                                 </button>
                                 <button
                                     type="button"
@@ -433,17 +566,27 @@ export default function MapComponent({
                             </div>
 
                             {onSpotClick && (
-                                <div style={{ marginTop: 15 }}>
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetailModalSpot(selectedSpot)}
+                                        style={btnStyleDetails}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#e2e8f0'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                                    >
+                                        View Spot Details
+                                    </button>
+
                                     {isMine ? (
                                         <div style={{
                                             textAlign: 'center',
                                             padding: '10px',
                                             backgroundColor: '#fee2e2',
                                             color: '#b91c1c',
-                                            borderRadius: '8px',
+                                            borderRadius: '20px',
                                             fontWeight: '700',
                                             border: '1px solid #fecaca',
-                                            fontSize: '14px'
+                                            fontSize: '13px'
                                         }}>
                                             This parking spot is yours
                                         </div>
@@ -452,6 +595,8 @@ export default function MapComponent({
                                             type="button"
                                             onClick={() => onSpotClick(selectedSpot)}
                                             style={btnStyleRequest}
+                                            onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+                                            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
                                         >
                                             Request booking
                                         </button>
@@ -463,6 +608,13 @@ export default function MapComponent({
                     </InfoWindow>
                 )}
             </GoogleMap>
+
+
+            <SpotDetailModal
+                spot={detailModalSpot}
+                onClose={() => setDetailModalSpot(null)}
+            />
+
         </div>
     )
 
