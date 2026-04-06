@@ -117,6 +117,12 @@ export default function LoginPage() {
             <div className="auth-wrap">
                 <div className="auth-card auth-card-mobile">
                     {/*<div className="auth-bubble">📍</div>*/}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: '20px' }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 999, background: 'rgb(37,99,235)', display: 'grid', placeItems: 'center', color: 'white', overflow: 'hidden' }} aria-hidden="true">
+                            <img src="Logo_notext.png" alt="Logo" style={{ width: 41, height: 50, display: 'block', marginLeft: -1 }} />
+                        </span>
+                        <div style={{ fontWeight: 900, fontSize: 24, color: '#0549fa' }}>EasyPark</div>
+                    </div>
 
                     <h2 className="auth-title">Welcome to EasyPark</h2>
                     <p className="auth-subtitle">Sign in to continue</p>

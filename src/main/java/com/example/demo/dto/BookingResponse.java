@@ -18,6 +18,9 @@ public class BookingResponse {
     private String status;
     private Double totalPrice;
 
+
+    private String ownerPhone;
+
     public static BookingResponse from(Booking b) {
         BookingResponse r = new BookingResponse();
         r.id = b.getId();
@@ -33,6 +36,10 @@ public class BookingResponse {
         r.endTime = b.getEndTime();
         r.status = (b.getStatus() != null) ? b.getStatus().name() : null;
         r.totalPrice = b.getTotalPrice();
+
+
+        r.ownerPhone = b.getOwnerPhone();
+
         return r;
     }
 
@@ -47,4 +54,6 @@ public class BookingResponse {
     public Double getParkingLat() { return parkingLat; }
     public Double getParkingLng() { return parkingLng; }
 
+    // phone
+    public String getOwnerPhone() { return ownerPhone; }
 }

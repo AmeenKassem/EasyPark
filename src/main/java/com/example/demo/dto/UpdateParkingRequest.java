@@ -2,6 +2,7 @@ package com.example.demo.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -20,6 +21,10 @@ public class UpdateParkingRequest {
     private boolean covered;
     private boolean active = true;
     private String availabilityType; // "SPECIFIC" or "RECURRING"
+
+    @Size(max = 80, message = "Description must be up to 80 characters")
+    private String description;
+
     private List<CreateParkingRequest.SpecificSlotDto> specificAvailability;
     private List<CreateParkingRequest.RecurringScheduleDto> recurringSchedule;
 
@@ -36,7 +41,8 @@ public class UpdateParkingRequest {
     public void setCovered(boolean covered) { this.covered = covered; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
-
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
     public String getAvailabilityType() { return availabilityType; }
     public void setAvailabilityType(String availabilityType) { this.availabilityType = availabilityType; }
 

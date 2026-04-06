@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Layout from '../components/layout/layout'
 import { cancelBooking, getMyBookings,rateParking } from '../services/booking'
 import '../styles/auth.css'
 
 function fmt(dt) {
     if (!dt) return ''
-    // dt is ISO like "2026-01-05T10:00:00"
+
     return dt.replace('T', ' ').slice(0, 16)
 }
+
 function statusBadgeStyle(status) {
     const s = String(status || '').toUpperCase()
 
@@ -18,6 +19,7 @@ function statusBadgeStyle(status) {
 
     return { background: '#E2E8F0', color: '#0f172a' }
 }
+
 function extractErrorMessage(e, fallback) {
     const data = e?.response?.data
     if (typeof data === 'string') return data
@@ -37,7 +39,7 @@ function canCancelBooking(b) {
     const start = new Date(b.startTime)
     if (Number.isNaN(start.getTime())) return false
 
-    return start > new Date() // only before start time
+    return start > new Date()
 }
 
 
@@ -48,6 +50,15 @@ export default function MyBookingsPage() {
     const [feedback, setFeedback] = useState({ message: '', isError: false })
     const [ratingByBooking, setRatingByBooking] = useState({})
     const [ratingSavingId, setRatingSavingId] = useState(null)
+
+    const upcomingCount = useMemo(() => {
+        const now = new Date()
+        return items.filter(b => {
+            const isFuture = b.startTime && new Date(b.startTime) > now
+            const isActive = b.status === 'APPROVED' || b.status === 'PENDING'
+            return isFuture && isActive
+        }).length
+    }, [items])
 
     const load = async () => {
         setLoading(true)
@@ -125,8 +136,23 @@ export default function MyBookingsPage() {
         <Layout title="">
             <div className="auth-wrap" style={{ minHeight: 'calc(100vh - 80px)' }}>
                 <div className="auth-card" style={{ maxWidth: 860, textAlign: 'left' }}>
-                    <div className="auth-title" style={{ marginTop: 0 }}>
-                        My Bookings
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h1 className="auth-title" style={{ margin: 0 }}>
+                            My Bookings
+                        </h1>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+                        <div style={{ flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Upcoming Bookings</span>
+                            <span style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a' }}>{upcomingCount}</span>
+                        </div>
+
+                        <div style={{ flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Total Bookings</span>
+                            <span style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a' }}>{items.length}</span>
+                        </div>
                     </div>
 
                     {feedback.message && (
@@ -154,125 +180,94 @@ export default function MyBookingsPage() {
                         <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
                             {items.map((b) => {
                                 const canCancel = canCancelBooking(b)
-                                return(
+                                const isApproved = String(b.status || '').toUpperCase() === 'APPROVED'
 
-                                <div
-                                    key={b.id}
-                                    style={{
-                                        border: '1px solid rgba(0,0,0,0.12)',
-                                        borderRadius: 12,
-                                        padding: 12,
-                                        display: 'grid',
-                                        gap: 6,
-                                    }}
-                                >
+                                return (
+                                    <div
+                                        key={b.id}
+                                        style={{
+                                            border: '1px solid rgba(0,0,0,0.12)',
+                                            borderRadius: 12,
+                                            padding: 12,
+                                            display: 'grid',
+                                            gap: 6,
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                                            <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <span style={{ color: '#0f172a' }}>Booking #{b.id}</span>
 
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                                        <div style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <span style={{ color: '#0f172a' }}>Booking #{b.id}</span>
-
-                                            <span
-                                                style={{
-                                                    ...statusBadgeStyle(b.status),
-                                                    padding: '6px 10px',
-                                                    borderRadius: 999,
-                                                    fontWeight: 900,
-                                                    fontSize: 12,
-                                                    lineHeight: '12px',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                }}
-                                            >
-        {b.status}
-    </span>
-                                        </div>
-
-                                        <div style={{ fontWeight: 900 }}>
-                                            {b.totalPrice != null ? `₪${b.totalPrice}` : ''}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ color: '#334155', fontWeight: 700 }}>
-                                        Parking: {b.parkingLocation || '—'}
-                                        <span style={{ marginLeft: 8, color: '#64748b', fontWeight: 600, fontSize: 12 }}>
-        (ID: {b.parkingId})
-    </span>
-                                    </div>
-
-
-                                    <div style={{ color: '#334155' }}>
-                                        <strong>Start:</strong> {fmt(b.startTime)} &nbsp;&nbsp;
-                                        <strong>End:</strong> {fmt(b.endTime)}
-                                    </div>
-                                    {isApprovedBooking(b) && (
-                                        <div
-                                            style={{
-                                                marginTop: 8,
-                                                padding: 10,
-                                                borderRadius: 10,
-                                                background: '#f8fafc',
-                                                border: '1px solid rgba(0,0,0,0.08)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                gap: 12,
-                                                flexWrap: 'wrap',
-                                            }}
-                                        >
-                                            <div style={{ fontWeight: 800, color: '#0f172a' }}>
-                                                Rate this parking
-                                            </div>
-
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <select
-                                                    value={ratingByBooking[b.id] || ''}
-                                                    onChange={(e) => handleRatingChange(b.id, e.target.value)}
+                                                <span
                                                     style={{
-                                                        padding: '8px 10px',
-                                                        borderRadius: 8,
-                                                        border: '1px solid rgba(0,0,0,0.15)',
-                                                        fontWeight: 700,
+                                                        ...statusBadgeStyle(b.status),
+                                                        padding: '6px 10px',
+                                                        borderRadius: 999,
+                                                        fontWeight: 900,
+                                                        fontSize: 12,
+                                                        lineHeight: '12px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
                                                     }}
                                                 >
-                                                    <option value="">Choose</option>
-                                                    <option value="1">1</option>
-                                                    <option value="2">2</option>
-                                                    <option value="3">3</option>
-                                                    <option value="4">4</option>
-                                                    <option value="5">5</option>
-                                                </select>
+                                                    {b.status}
+                                                </span>
+                                            </div>
 
-                                                <button
-                                                    type="button"
-                                                    className="auth-primary"
-                                                    style={{ width: 140 }}
-                                                    disabled={ratingSavingId === b.id}
-                                                    onClick={() => doRate(b)}
-                                                >
-                                                    {ratingSavingId === b.id ? 'Saving...' : 'Submit Rating'}
-                                                </button>
+                                            <div style={{ fontWeight: 900 }}>
+                                                {b.totalPrice != null ? `₪${b.totalPrice}` : ''}
                                             </div>
                                         </div>
-                                    )}
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                                        <button
-                                            type="button"
-                                            className="auth-primary"
-                                            style={{
-                                                width: 160,
-                                                background: canCancel ? '#ef4444' : '#94a3b8',
-                                                cursor: canCancel ? 'pointer' : 'not-allowed',
-                                            }}
-                                            disabled={!canCancel || savingId === b.id}
-                                            title={!canCancel ? 'Cancellation is allowed only before the booking start time.' : ''}
-                                            onClick={() => doCancel(b.id)}
-                                        >
-                                            {savingId === b.id ? 'Cancelling...' : 'Cancel'}
-                                        </button>
 
+                                        <div style={{ color: '#334155', fontWeight: 700 }}>
+                                            Parking: {b.parkingLocation || '—'}
+                                            <span style={{ marginLeft: 8, color: '#64748b', fontWeight: 600, fontSize: 12 }}>
+                                                (ID: {b.parkingId})
+                                            </span>
+                                        </div>
+
+                                        <div style={{ color: '#334155' }}>
+                                            <strong>Start:</strong> {fmt(b.startTime)} &nbsp;&nbsp;
+                                            <strong>End:</strong> {fmt(b.endTime)}
+                                        </div>
+
+
+                                        {isApproved && (
+                                            <div style={{
+                                                marginTop: 8,
+                                                padding: '8px 12px',
+                                                backgroundColor: '#f0fdf4',
+                                                border: '1px solid #bbf7d0',
+                                                borderRadius: '8px',
+                                                color: '#166534',
+                                                fontSize: '13px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}>
+                                                <span style={{ fontSize: '16px' }}>📞</span>
+                                                <span><strong>Owner Contact:</strong> {b.ownerPhone || 'Not available'}</span>
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                                            <button
+                                                type="button"
+                                                className="auth-primary"
+                                                style={{
+                                                    width: 160,
+                                                    background: canCancel ? '#ef4444' : '#94a3b8',
+                                                    cursor: canCancel ? 'pointer' : 'not-allowed',
+                                                }}
+                                                disabled={!canCancel || savingId === b.id}
+                                                title={!canCancel ? 'Cancellation is allowed only before the booking start time.' : ''}
+                                                onClick={() => doCancel(b.id)}
+                                            >
+                                                {savingId === b.id ? 'Cancelling...' : 'Cancel'}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )})}
+                                )
+                            })}
                         </div>
                     )}
                 </div>

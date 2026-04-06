@@ -6,7 +6,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import TimeDropdown from '../components/inputs/TimeDropdown'
 import { generateTimeOptions } from '../utils/timeOptions'
-// --- HELPER: Generate Time Slots ---
+
 const toYMD = (d) => {
     if (!d) return '';
     const y = d.getFullYear();
@@ -18,21 +18,20 @@ const splitIsoToDateTime = (iso) => {
     if (!iso) return { date: '', time: '' }
     const s = String(iso)
     const [d, tRaw] = s.split('T')
-    const t = (tRaw || '').slice(0, 5) // "HH:MM"
+    const t = (tRaw || '').slice(0, 5)
     return { date: d || '', time: t || '' }
 }
 
 const normalizeTimeHHMM = (t) => {
     if (!t) return ''
-    return String(t).slice(0, 5) // handles "HH:MM:SS" and "HH:MM"
+    return String(t).slice(0, 5)
 }
 
 const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', initialSpot = null }) => {
 
-
-    // --- STATE ---
     const [formData, setFormData] = useState({
         location: '',
+        description: '',
         lat: null,
         lng: null,
         pricePerHour: '',
@@ -41,12 +40,10 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
     const [availabilityType, setAvailabilityType] = useState('specific');
 
-    // CHANGE: Initialize with empty strings to force user selection
     const [specificSlots, setSpecificSlots] = useState([
         { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }
     ]);
 
-    // CHANGE: Initialize recurring times with empty strings
     const [weeklySchedule, setWeeklySchedule] = useState({
         0: { active: false, start: '', end: '' },
         1: { active: false, start: '', end: '' },
@@ -57,28 +54,26 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         6: { active: false, start: '', end: '' },
     });
 
-    // CHANGE: Initialize batch times with empty strings
     const [batchTime, setBatchTime] = useState({ start: '', end: '' });
     const [loading, setLoading] = useState(false);
     const [apiMessage, setApiMessage] = useState('');
+
     useEffect(() => {
         if (mode !== 'edit' || !initialSpot) return
 
-        // Basic fields
         setFormData({
             location: initialSpot.location || '',
+            description: initialSpot.description || '',
             lat: initialSpot.lat ?? null,
             lng: initialSpot.lng ?? null,
             pricePerHour: String(initialSpot.pricePerHour ?? ''),
             covered: !!initialSpot.covered,
         })
 
-        // Availability type
         const t = String(initialSpot.availabilityType || '').toLowerCase()
         if (t === 'recurring') setAvailabilityType('recurring')
-        else setAvailabilityType('specific') // default
+        else setAvailabilityType('specific')
 
-        // Specific slots prefill
         if (String(initialSpot.availabilityType || '').toUpperCase() === 'SPECIFIC') {
             const slots = Array.isArray(initialSpot.specificAvailability) ? initialSpot.specificAvailability : []
             const mapped = slots.length
@@ -98,7 +93,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             setSpecificSlots(mapped)
         }
 
-        // Recurring schedule prefill
         if (String(initialSpot.availabilityType || '').toUpperCase() === 'RECURRING') {
             const rec = Array.isArray(initialSpot.recurringSchedule) ? initialSpot.recurringSchedule : []
             const base = {
@@ -127,13 +121,11 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
     const timeOptions = useMemo(() => generateTimeOptions(30), []);
 
-    // --- HELPER: Get Current Time HH:MM ---
     const getCurrentTimeHHMM = () => {
         const now = new Date();
         return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     };
 
-    // --- VALIDATION LOGIC ---
     const validationErrors = useMemo(() => {
         const errors = [];
         if (!formData.lat || !formData.lng) errors.push("Please select a precise location from the list.");
@@ -153,7 +145,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         return errors;
     }, [formData, availabilityType, specificSlots, weeklySchedule]);
 
-    // --- TIME FILTERS FOR UI ---
     const getStartOptions = () => timeOptions.filter(t => t !== '23:59');
 
     const getValidStartTimes = (selectedDate) => {
@@ -180,7 +171,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         return timeOptions.filter(t => t > startTime);
     };
 
-    // --- HANDLERS ---
     const handleAddressSelect = ({ lat, lng, address, address_components }) => {
         setApiMessage('');
         if (address_components) {
@@ -200,7 +190,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     };
 
     const addSpecificSlot = () => {
-        // CHANGE: Add new slot with empty times
         setSpecificSlots(prev => [...prev, { id: Date.now(), startDate: '', startTime: '', endDate: '', endTime: '' }]);
     };
 
@@ -209,7 +198,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
         setSpecificSlots(prev => prev.filter(slot => slot.id !== id));
     };
 
-    // --- STRICT SANITIZATION UPDATE ---
     const updateSpecificSlot = (id, field, value) => {
         setSpecificSlots(prev => prev.map(slot => {
             if (slot.id !== id) return slot;
@@ -218,14 +206,12 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
             const todayStr = new Date().toISOString().split('T')[0];
             const currentTime = getCurrentTimeHHMM();
 
-            // 2. Sanitize START TIME (vs Today)
             if (newSlot.startDate === todayStr && newSlot.startTime) {
                 if (newSlot.startTime <= currentTime) {
                     newSlot.startTime = '';
                 }
             }
 
-            // 3. Sanitize END DATE (vs Start Date)
             if (newSlot.startDate && newSlot.endDate) {
                 if (newSlot.endDate < newSlot.startDate) {
                     newSlot.endDate = '';
@@ -233,7 +219,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                 }
             }
 
-            // 4. Sanitize END TIME (vs Start Time on same day)
             if (newSlot.startDate && newSlot.endDate && newSlot.startDate === newSlot.endDate) {
                 if (newSlot.startTime && newSlot.endTime) {
                     if (newSlot.endTime <= newSlot.startTime) {
@@ -304,6 +289,8 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
 
             let payload = {
                 location: formData.location,
+
+                description: formData.description ? formData.description.trim() : null,
                 lat: formData.lat,
                 lng: formData.lng,
                 pricePerHour: parseFloat(formData.pricePerHour),
@@ -331,15 +318,12 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     })
                     .filter(Boolean)
                 payload.recurringSchedule = scheduleList
-
             }
 
             const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
             if (mode === 'edit') {
-                if (!initialSpot?.id) {
-                    throw new Error('Missing spot id for edit.')
-                }
+                if (!initialSpot?.id) throw new Error('Missing spot id for edit.')
 
                 await axios.put(`${API_BASE}/api/parking-spots/${initialSpot.id}`, payload, {
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
@@ -356,7 +340,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                 setTimeout(() => { onCreated?.(); onClose?.(); }, 700)
             }
 
-
         } catch (error) {
             const apiMsg = error?.response?.data?.message || error?.response?.data?.error;
             setApiMessage(apiMsg ? `Error: ${apiMsg}` : 'Error creating parking spot.');
@@ -371,48 +354,44 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
     return (
         <div style={{ maxWidth: '650px', margin: '40px auto', padding: '30px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '20px', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
             <style>{`
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  input[type=number] { -moz-appearance: textfield; }
+              input[type=number]::-webkit-outer-spin-button,
+              input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+              input[type=number] { -moz-appearance: textfield; }
 
-  /* Match booking calendar look */
-  .ep-date-wrap { width: 100%; }
-  .ep-date-picker {
-    width: 100%;
-    height: 38px;               /* matches your current compact slot row */
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    font-size: 13px;
-    outline: none;
-    color: #1e293b;
-    font-family: inherit;
-    background: #fff;
-    box-sizing: border-box;
-  }
-  .ep-date-picker:focus {
-    border-color: #94a3b8;
-  }
+              .ep-date-wrap { width: 100%; }
+              .ep-date-picker {
+                width: 100%;
+                height: 38px;
+                padding: 0 10px;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+                font-size: 13px;
+                outline: none;
+                color: #1e293b;
+                font-family: inherit;
+                background: #fff;
+                box-sizing: border-box;
+              }
+              .ep-date-picker:focus {
+                border-color: #94a3b8;
+              }
 
-  /* Optional: make the popup look cleaner */
-  .react-datepicker {
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
-    overflow: hidden;
-  }
-  .react-datepicker__header {
-    background: #ffffff;
-    border-bottom: 1px solid #f1f5f9;
-  }
-`}</style>
-
+              .react-datepicker {
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+                overflow: hidden;
+              }
+              .react-datepicker__header {
+                background: #ffffff;
+                border-bottom: 1px solid #f1f5f9;
+              }
+            `}</style>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                 <h2 style={{ margin: 0, fontWeight: '800', fontSize: '24px' }}>
                     {mode === 'edit' ? 'Edit Spot Availability' : 'Add New Spot'}
                 </h2>
-
                 <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
             </div>
 
@@ -458,6 +437,19 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                 </div>
 
 
+                <div style={{ ...groupStyle, marginTop: '12px' }}>
+                    <label style={labelStyle}>Description (Optional, up to 80 chars)</label>
+                    <input
+                        type="text"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        maxLength={80}
+                        style={inputStyle}
+                        placeholder="e.g., Covered parking spot near the entrance"
+                    />
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px', marginTop: '12px' }}>
                     <div style={groupStyle}>
                         <label style={labelStyle}>Price / Hour</label>
@@ -486,7 +478,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     <button type="button" onClick={() => setAvailabilityType('recurring')} style={availabilityType === 'recurring' ? activeTabStyle : inactiveTabStyle}>Weekly Schedule</button>
                 </div>
 
-                {/* Specific Dates Logic */}
                 {availabilityType === 'specific' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{fontSize: '13px', color: '#64748b', marginBottom: '5px'}}>Set the start and end time for when the parking is available.</div>
@@ -550,7 +541,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                     </div>
                 )}
 
-                {/* Recurring Logic */}
                 {availabilityType === 'recurring' && (
                     <div>
                         <label style={labelStyle}>Select Days</label>
@@ -572,7 +562,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                     placeholder="--:--"
                                     maxVisible={5}
                                 />
-
                                 <span style={{ color: '#94a3b8' }}>➜</span>
                                 <TimeDropdown
                                     value={batchTime.end}
@@ -582,7 +571,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                     disabled={!batchTime.start}
                                     maxVisible={5}
                                 />
-
                             </div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -600,7 +588,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             placeholder="--:--"
                                             maxVisible={5}
                                         />
-
                                         <span style={{ color: '#cbd5e1' }}>-</span>
                                         <TimeDropdown
                                             value={dayData.end}
@@ -610,7 +597,6 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                                             disabled={!dayData.start}
                                             maxVisible={5}
                                         />
-
                                     </div>
                                 );
                             })}
@@ -647,7 +633,6 @@ const labelStyle = { fontSize: '13px', fontWeight: '600', color: '#475569', text
 const subLabelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '2px', textTransform: 'uppercase' };
 const inputWrapperStyle = { display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: '10px', height: '42px', backgroundColor: '#fff', transition: 'border-color 0.2s' };
 const inputStyle = { width: '100%', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px', fontSize: '14px', outline: 'none', color: '#1e293b', fontFamily: 'inherit' };
-const selectStyle = { ...inputStyle, cursor: 'pointer', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '10px' };
 const stepperBtnStyle = { border: 'none', background: 'transparent', color: '#64748b', fontSize: '18px', padding: '0 10px', cursor: 'pointer' };
 const activeTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', fontWeight: '600', color: '#0f172a', cursor: 'default' };
 const inactiveTabStyle = { flex: 1, padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', fontWeight: '500' };
