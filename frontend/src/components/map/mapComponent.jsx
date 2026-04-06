@@ -24,7 +24,7 @@ const locateBtnStyle = {
     padding: 0,
 }
 
-// עיצוב אחיד לכפתורי המשנה (Waze, Maps, Details)
+
 const secondaryBtnStyle = {
     backgroundColor: '#f8fafc',
     color: '#334155',
@@ -64,7 +64,7 @@ const btnStyleDetails = {
     marginBottom: '12px'
 }
 
-// עיצוב בולט וייחודי לכפתור הפעולה המרכזי
+
 const btnStyleRequest = {
     backgroundColor: '#2563eb',
     color: 'white',
