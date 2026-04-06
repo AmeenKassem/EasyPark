@@ -3,16 +3,21 @@ package com.example.demo.service;
 import com.example.demo.dto.CreateParkingRequest;
 import com.example.demo.dto.UpdateParkingRequest;
 import com.example.demo.model.AvailabilityType;
+import com.example.demo.model.BookingStatus;
 import com.example.demo.model.Parking;
+import com.example.demo.model.ParkingRating;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
+import com.example.demo.repository.ParkingRatingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -32,7 +37,10 @@ class ParkingServiceTest {
     private ParkingRepository parkingRepository;
 
     @Mock
-    private BookingRepository bookingRepository; 
+    private BookingRepository bookingRepository;
+
+    @Mock
+    private ParkingRatingRepository parkingRatingRepository;
 
     @InjectMocks
     private ParkingService parkingService;
@@ -68,13 +76,11 @@ class ParkingServiceTest {
         req.setPricePerHour(20.0);
         req.setCovered(false);
 
-
         req.setAvailabilityType("SPECIFIC");
         CreateParkingRequest.SpecificSlotDto slot = new CreateParkingRequest.SpecificSlotDto();
         slot.setStart(LocalDateTime.now().plusDays(1));
         slot.setEnd(LocalDateTime.now().plusDays(2));
         req.setSpecificAvailability(List.of(slot));
-        // -----------------------------------------
 
         when(parkingRepository.save(any(Parking.class))).thenAnswer(invocation -> {
             Parking p = invocation.getArgument(0);
@@ -90,7 +96,6 @@ class ParkingServiceTest {
         assertEquals(55L, result.getId());
         assertEquals(ownerId, result.getOwnerId());
         assertEquals(AvailabilityType.SPECIFIC, result.getAvailabilityType());
-
         assertEquals(1, result.getAvailabilityList().size());
 
         verify(parkingRepository).save(any(Parking.class));
@@ -103,7 +108,6 @@ class ParkingServiceTest {
         req.setLocation("New Location");
         req.setActive(false);
         req.setPricePerHour(15.0);
-
         req.setAvailabilityType("RECURRING");
 
         when(parkingRepository.findById(1L)).thenReturn(Optional.of(parking));
@@ -130,6 +134,53 @@ class ParkingServiceTest {
         // Act & Assert
         assertThrows(AccessDeniedException.class,
                 () -> parkingService.update(otherOwnerId, 1L, req));
+    }
+
+    @Test
+    void rateParking_WhenValidBooking_ShouldUpdateAverageRating() {
+        // Arrange
+        Long userId = 500L;
+        int newRatingValue = 5;
+
+        parking.setAverageRating(3.0);
+        parking.setRatingCount(1);
+
+        when(parkingRepository.findById(1L)).thenReturn(Optional.of(parking));
+        when(bookingRepository.existsByParkingIdAndDriverIdAndStatus(1L, userId, BookingStatus.APPROVED))
+                .thenReturn(true);
+        when(parkingRatingRepository.findByParkingIdAndUserId(1L, userId)).thenReturn(Optional.empty());
+
+        // Mock list of ratings for average calculation (3.0 original + 5.0 new = 4.0 average)
+        ParkingRating r1 = new ParkingRating(); r1.setRating(3);
+        ParkingRating r2 = new ParkingRating(); r2.setRating(5);
+        when(parkingRatingRepository.findByParkingId(1L)).thenReturn(Arrays.asList(r1, r2));
+
+        when(parkingRepository.save(any(Parking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        Parking result = parkingService.rateParking(userId, 1L, newRatingValue);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(2, result.getRatingCount());
+        assertEquals(4.0, result.getAverageRating());
+        verify(parkingRatingRepository).saveAndFlush(any());
+        verify(parkingRepository).save(parking);
+    }
+
+    @Test
+    void rateParking_WhenNoApprovedBooking_ShouldThrowForbidden() {
+        // Arrange
+        Long userId = 500L;
+        when(parkingRepository.findById(1L)).thenReturn(Optional.of(parking));
+        when(bookingRepository.existsByParkingIdAndDriverIdAndStatus(1L, userId, BookingStatus.APPROVED))
+                .thenReturn(false);
+
+        // Act & Assert
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> parkingService.rateParking(userId, 1L, 4));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
     }
 
     @Test
