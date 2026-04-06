@@ -36,4 +36,12 @@ export async function getBusyIntervals(parkingId, from, to) {
     });
     return res.data || [];
 }
+export async function rateParking(parkingId, rating) {
+    const res = await axios.post(
+        `${API_BASE}/api/parking-spots/${parkingId}/rate`,
+        { rating },
+        { headers: authHeaders() },
+    )
+    return res.data
+}
 

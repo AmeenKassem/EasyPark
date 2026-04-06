@@ -82,5 +82,5 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     boolean existsApprovedNotEndedForParking(@Param("parkingId") Long parkingId,
                                              @Param("now") LocalDateTime now);
 
-
+    boolean existsByParkingIdAndDriverIdAndStatus(Long parkingId, Long driverId, BookingStatus status);
 }

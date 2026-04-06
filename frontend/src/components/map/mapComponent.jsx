@@ -24,7 +24,6 @@ const locateBtnStyle = {
     padding: 0,
 }
 
-
 const btnStyleWaze = {
     backgroundColor: '#cffafe',
     color: '#0f172a',
@@ -81,15 +80,6 @@ const btnStyleRequest = {
     transition: 'opacity 0.2s'
 }
 
-const btnStyleRate = {
-    backgroundColor: '#f3f4f6',
-    color: 'black',
-    border: 'none',
-    padding: '8px 10px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 700,
-}
 
 
 function SpotDetailModal({ spot, onClose }) {
@@ -337,47 +327,6 @@ export default function MapComponent({
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }
-
-    const handleRateSpot = async (spotId, rating) => {
-        try {
-            setRatingMessage('')
-            setIsSubmittingRating(true)
-
-            const token = getAuthToken()
-
-            const res = await axios.post(
-                `http://localhost:8080/api/parking-spots/${spotId}/rate`,
-                { rating },
-                {
-                    headers: token
-                        ? { Authorization: `Bearer ${token}` }
-                        : {}
-                }
-            )
-
-            const updatedSpot = res.data
-
-            setSelectedSpot(updatedSpot)
-
-            if (!Array.isArray(spots)) {
-                setApiSpots(prev =>
-                    prev.map(s => s.id === updatedSpot.id ? updatedSpot : s)
-                )
-            }
-
-            setRatingMessage('Rating submitted successfully')
-        } catch (e) {
-            console.error('Error rating parking spot:', e)
-            setRatingMessage(
-                e?.response?.data?.message ||
-                e?.response?.data?.error ||
-                'Failed to submit rating'
-            )
-        } finally {
-            setIsSubmittingRating(false)
-        }
-    }
-
     const onLoad = (map) => {
         mapRef.current = map
         if (onMapLoad) {
@@ -507,48 +456,7 @@ export default function MapComponent({
                                     ? `${Number(selectedSpot.averageRating).toFixed(1)} / 5 (${selectedSpot.ratingCount} ratings)`
                                     : 'No ratings yet'}
                             </p>
-                            {!isMine && (
-                                <div style={{ marginTop: 10 }}>
-                                    <p style={{ margin: '6px 0', color: 'black', fontWeight: 'bold', fontSize: '12px' }}>
-                                        Rate this parking:
-                                    </p>
-                                    <div style={{ display: 'flex', gap: 6 }}>
-                                        {[1, 2, 3, 4, 5].map((star) => (
-                                            <button
-                                                key={star}
-                                                type="button"
-                                                onClick={() => handleRateSpot(selectedSpot.id, star)}
-                                                style={{
-                                                    ...btnStyleRate,
-                                                    opacity: isSubmittingRating ? 0.6 : 1,
-                                                    cursor: isSubmittingRating ? 'not-allowed' : 'pointer'
-                                                }}
-                                                disabled={isSubmittingRating}
-                                            >
-                                                {star}★
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {ratingMessage && (
-                                        <div
-                                            style={{
-                                                marginTop: 10,
-                                                padding: '8px 10px',
-                                                borderRadius: '8px',
-                                                backgroundColor: '#f3f4f6',
-                                                color: '#111827',
-                                                fontSize: '14px',
-                                                fontWeight: 600
-                                            }}
-                                        >
-                                            {ratingMessage}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <div style={{ display: 'flex', gap: 8, marginTop: 14, marginBottom: 12 }}>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                                 <button
                                     type="button"
                                     onClick={() => handleNavigate(selectedSpot.lat, selectedSpot.lng, 'waze')}
