@@ -24,6 +24,7 @@ public class User {
     private String email;
 
     private String phone;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
@@ -37,7 +38,15 @@ public class User {
 
     @NotBlank
     @Column(nullable = false)
-    private String passwordHash; // for now we store the password here (plain) for demo
+    private String passwordHash;
+
+    // --- NEW: Driver Rating Fields ---
+    @Column(columnDefinition = "double precision default 0.0")
+    private Double averageRating = 0.0;
+
+    @Column(columnDefinition = "int default 0")
+    private Integer totalRatings = 0;
+    // ---------------------------------
 
     public User() {
     }
@@ -48,71 +57,37 @@ public class User {
         this.phone = phone;
         this.role = role;
         this.passwordHash = passwordHash;
-        this.authProvider = AuthProvider.LOCAL; // Default auth provider for manual registration
+        this.authProvider = AuthProvider.LOCAL;
     }
 
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public Long getId() {
-        return id;
-    }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getFullName() {
-        return fullName;
-    }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
-    public String getEmail() {
-        return email;
-    }
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    public AuthProvider getAuthProvider() { return authProvider; }
+    public void setAuthProvider(AuthProvider authProvider) { this.authProvider = authProvider; }
 
-    public String getPhone() {
-        return phone;
-    }
+    public String getProviderUserId() { return providerUserId; }
+    public void setProviderUserId(String providerUserId) { this.providerUserId = providerUserId; }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
+    // --- NEW Getters & Setters ---
+    public Double getAverageRating() { return averageRating != null ? averageRating : 0.0; }
+    public void setAverageRating(Double averageRating) { this.averageRating = averageRating; }
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-    public Role getRole() {
-        return role;
-    }
-
-    public void setRole(Role role) {
-        this.role = role;
-    }
-
-    public AuthProvider getAuthProvider() {
-        return authProvider;
-    }
-
-    public void setAuthProvider(AuthProvider authProvider) {
-        this.authProvider = authProvider;
-    }
-
-    public String getProviderUserId() {
-        return providerUserId;
-    }
-
-    public void setProviderUserId(String providerUserId) {
-        this.providerUserId = providerUserId;
-    }
-
+    public Integer getTotalRatings() { return totalRatings != null ? totalRatings : 0; }
+    public void setTotalRatings(Integer totalRatings) { this.totalRatings = totalRatings; }
 }
