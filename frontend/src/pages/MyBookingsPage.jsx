@@ -48,8 +48,6 @@ export default function MyBookingsPage() {
     const [feedback, setFeedback] = useState({ message: '', isError: false })
     const [ratingByBooking, setRatingByBooking] = useState({})
     const [ratingSavingId, setRatingSavingId] = useState(null)
-
-   
     const [showSuccessModal, setShowSuccessModal] = useState(false)
 
     const upcomingCount = useMemo(() => {
