@@ -229,7 +229,56 @@ export default function MyBookingsPage() {
                                             <strong>Start:</strong> {fmt(b.startTime)} &nbsp;&nbsp;
                                             <strong>End:</strong> {fmt(b.endTime)}
                                         </div>
+                                        {isApprovedBooking(b) && (
+                                            <div
+                                                style={{
+                                                    marginTop: 8,
+                                                    padding: 10,
+                                                    borderRadius: 10,
+                                                    background: '#f8fafc',
+                                                    border: '1px solid rgba(0,0,0,0.08)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 12,
+                                                    flexWrap: 'wrap',
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 800, color: '#0f172a' }}>
+                                                    Rate this parking
+                                                </div>
 
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <select
+                                                        value={ratingByBooking[b.id] || ''}
+                                                        onChange={(e) => handleRatingChange(b.id, e.target.value)}
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            borderRadius: 8,
+                                                            border: '1px solid rgba(0,0,0,0.15)',
+                                                            fontWeight: 700,
+                                                        }}
+                                                    >
+                                                        <option value="">Choose</option>
+                                                        <option value="1">1</option>
+                                                        <option value="2">2</option>
+                                                        <option value="3">3</option>
+                                                        <option value="4">4</option>
+                                                        <option value="5">5</option>
+                                                    </select>
+
+                                                    <button
+                                                        type="button"
+                                                        className="auth-primary"
+                                                        style={{ width: 140 }}
+                                                        disabled={ratingSavingId === b.id}
+                                                        onClick={() => doRate(b)}
+                                                    >
+                                                        {ratingSavingId === b.id ? 'Saving...' : 'Submit Rating'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {isApproved && (
                                             <div style={{
