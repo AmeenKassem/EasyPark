@@ -198,6 +198,16 @@ public class ParkingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
         }
 
+        boolean hasApprovedBooking = bookingRepository
+                .existsByParkingIdAndDriverIdAndStatus(parkingId, userId, BookingStatus.APPROVED);
+
+        if (!hasApprovedBooking) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You can rate this parking spot only if your booking was approved"
+            );
+        }
+
         ParkingRating parkingRating = parkingRatingRepository
                 .findByParkingIdAndUserId(parkingId, userId)
                 .orElse(null);
