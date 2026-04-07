@@ -4,6 +4,7 @@ import com.example.demo.dto.CreateBookingRequest;
 import com.example.demo.dto.UpdateBookingStatusRequest;
 import com.example.demo.model.*;
 import com.example.demo.repository.BookingRepository;
+import com.example.demo.repository.DriverRatingRepository;
 import com.example.demo.repository.ParkingRepository;
 import com.example.demo.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class BookingServiceImpl implements BookingService {
@@ -22,17 +25,19 @@ public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final ParkingRepository parkingRepository;
     private final UserRepository userRepository;
+    private final DriverRatingRepository driverRatingRepository; // NEW
 
-    // These statuses are considered "blocking" for overlap checks
     private static final EnumSet<BookingStatus> ACTIVE_STATUSES =
             EnumSet.of(BookingStatus.PENDING, BookingStatus.APPROVED);
 
     public BookingServiceImpl(BookingRepository bookingRepository,
                               ParkingRepository parkingRepository,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              DriverRatingRepository driverRatingRepository) { // NEW
         this.bookingRepository = bookingRepository;
         this.parkingRepository = parkingRepository;
         this.userRepository = userRepository;
+        this.driverRatingRepository = driverRatingRepository; // NEW
     }
 
     @Override
@@ -55,9 +60,7 @@ public class BookingServiceImpl implements BookingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot book your own parking spot");
         }
 
-        // --- NEW: Validate against complex availability ---
         validateParkingAvailability(parking, req.getStartTime(), req.getEndTime());
-        // --------------------------------------------------
 
         User driver = userRepository.findById(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Driver not found"));
@@ -79,13 +82,11 @@ public class BookingServiceImpl implements BookingService {
         booking.setStartTime(req.getStartTime());
         booking.setEndTime(req.getEndTime());
         booking.setStatus(BookingStatus.PENDING);
-
         booking.setTotalPrice(calculateTotalPrice(parking, req.getStartTime(), req.getEndTime()));
 
         return bookingRepository.save(booking);
     }
 
-    // --- Helper Method to Validate Availability ---
     private void validateParkingAvailability(Parking parking, LocalDateTime start, LocalDateTime end) {
         if (parking.getAvailabilityList() == null || parking.getAvailabilityList().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Parking availability configuration is missing.");
@@ -108,11 +109,9 @@ public class BookingServiceImpl implements BookingService {
             }
 
         } else if (parking.getAvailabilityType() == AvailabilityType.RECURRING) {
-            // Convert Java DayOfWeek (1=Mon..7=Sun) to DB logic (0=Sun..6=Sat)
             int javaDay = start.getDayOfWeek().getValue();
-            int dbDay = (javaDay == 7) ? 0 : javaDay; // Adjust if your DB uses 1=Sun
+            int dbDay = (javaDay == 7) ? 0 : javaDay;
 
-            // Check if start and end are on the same day
             if (!start.toLocalDate().isEqual(end.toLocalDate())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking cannot span multiple days for recurring parking.");
             }
@@ -145,13 +144,9 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
-
     @Override
     public List<Booking> listMine(Long driverId) {
-
         List<Booking> bookings = bookingRepository.findMine(driverId);
-
-        // owner phone
         for (Booking booking : bookings) {
             if (booking.getParking() != null && booking.getParking().getOwnerId() != null) {
                 Long ownerId = booking.getParking().getOwnerId();
@@ -160,13 +155,25 @@ public class BookingServiceImpl implements BookingService {
                 });
             }
         }
-
         return bookings;
     }
 
     @Override
     public List<Booking> listForOwner(Long ownerId) {
-        return bookingRepository.findForOwner(ownerId);
+        List<Booking> bookings = bookingRepository.findForOwner(ownerId);
+
+        // --- NEW: Map which bookings have already been rated by this owner ---
+        List<DriverRating> ratings = driverRatingRepository.findByOwnerId(ownerId);
+        Set<Long> ratedBookingIds = ratings.stream()
+                .map(DriverRating::getBookingId)
+                .collect(Collectors.toSet());
+
+        for (Booking booking : bookings) {
+            booking.setRatedByOwner(ratedBookingIds.contains(booking.getId()));
+        }
+        // --------------------------------------------------------------------
+
+        return bookings;
     }
 
     @Override
@@ -227,7 +234,7 @@ public class BookingServiceImpl implements BookingService {
     private double calculateTotalPrice(Parking parking, LocalDateTime start, LocalDateTime end) {
         double pricePerHour = parking.getPricePerHour();
         long minutes = Duration.between(start, end).toMinutes();
-        double hoursExact = minutes / 60.0; // Must use 60.0 to force double division
+        double hoursExact = minutes / 60.0;
         double calculatedPrice = hoursExact * pricePerHour;
         return Math.round(calculatedPrice * 100.0) / 100.0;
     }

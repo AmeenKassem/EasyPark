@@ -38,9 +38,13 @@ public class Booking {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-
     @Transient
     private String ownerPhone;
+
+    // --- NEW: Indicates if the owner already rated the driver for this booking ---
+    @Transient
+    private Boolean ratedByOwner = false;
+    // ---------------------------------------------------------------------------
 
     public Booking() {}
 
@@ -81,7 +85,9 @@ public class Booking {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 
-    // beta version
     public String getOwnerPhone() { return ownerPhone; }
     public void setOwnerPhone(String ownerPhone) { this.ownerPhone = ownerPhone; }
+
+    public Boolean getRatedByOwner() { return ratedByOwner; }
+    public void setRatedByOwner(Boolean ratedByOwner) { this.ratedByOwner = ratedByOwner; }
 }
