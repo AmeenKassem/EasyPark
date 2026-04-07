@@ -1,7 +1,6 @@
 package com.example.demo.dto;
 
 import com.example.demo.model.Booking;
-
 import java.time.LocalDateTime;
 
 public class BookingResponse {
@@ -13,11 +12,16 @@ public class BookingResponse {
     private Double parkingLng;
 
     private Long driverId;
+    // --- NEW FIELDS ---
+    private Double driverRating;
+    private Integer driverTotalRatings;
+    private Boolean isRatedByOwner;
+    // ------------------
+
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String status;
     private Double totalPrice;
-
 
     private String ownerPhone;
 
@@ -31,14 +35,21 @@ public class BookingResponse {
             r.parkingLng = b.getParking().getLng();
         }
 
-        r.driverId = (b.getDriver() != null) ? b.getDriver().getId() : null;
+        if (b.getDriver() != null) {
+            r.driverId = b.getDriver().getId();
+            // Pulling rating from the driver
+            r.driverRating = b.getDriver().getAverageRating();
+            r.driverTotalRatings = b.getDriver().getTotalRatings();
+        }
+
         r.startTime = b.getStartTime();
         r.endTime = b.getEndTime();
         r.status = (b.getStatus() != null) ? b.getStatus().name() : null;
         r.totalPrice = b.getTotalPrice();
-
-
         r.ownerPhone = b.getOwnerPhone();
+
+        // Pass the transient field
+        r.isRatedByOwner = b.getRatedByOwner() != null ? b.getRatedByOwner() : false;
 
         return r;
     }
@@ -46,6 +57,9 @@ public class BookingResponse {
     public Long getId() { return id; }
     public Long getParkingId() { return parkingId; }
     public Long getDriverId() { return driverId; }
+    public Double getDriverRating() { return driverRating; }
+    public Integer getDriverTotalRatings() { return driverTotalRatings; }
+    public Boolean getIsRatedByOwner() { return isRatedByOwner; }
     public LocalDateTime getStartTime() { return startTime; }
     public LocalDateTime getEndTime() { return endTime; }
     public String getStatus() { return status; }
@@ -53,7 +67,5 @@ public class BookingResponse {
     public String getParkingLocation() { return parkingLocation; }
     public Double getParkingLat() { return parkingLat; }
     public Double getParkingLng() { return parkingLng; }
-
-    // phone
     public String getOwnerPhone() { return ownerPhone; }
 }
