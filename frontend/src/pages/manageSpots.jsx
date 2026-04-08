@@ -29,7 +29,6 @@ function statusBadgeStyle(status) {
     return { background: '#E2E8F0', color: '#0f172a' }
 }
 
-
 function normalizeSpotForUpdate(spot, overrides = {}) {
     const payload = {
         location: spot.location ?? '',
@@ -52,13 +51,21 @@ function normalizeSpotForUpdate(spot, overrides = {}) {
     return payload
 }
 
-
 export default function ManageSpotsPage() {
     const nav = useNavigate()
     const [bookings, setBookings] = useState([])
     const [bookingsLoading, setBookingsLoading] = useState(false)
     const [bookingsError, setBookingsError] = useState('')
     const [bookingSavingId, setBookingSavingId] = useState(null)
+
+    // --- Rating State ---
+    const [rateModalOpen, setRateModalOpen] = useState(false)
+    const [ratingBooking, setRatingBooking] = useState(null)
+    const [ratingValue, setRatingValue] = useState(0)
+    const [ratingHover, setRatingHover] = useState(0)
+    const [ratingSubmitting, setRatingSubmitting] = useState(false)
+    const [ratingError, setRatingError] = useState('')
+
     // Edit modal state
     const [editOpen, setEditOpen] = useState(false)
     const [editSpot, setEditSpot] = useState(null)
@@ -69,7 +76,6 @@ export default function ManageSpotsPage() {
         covered: false,
         active: true,
     })
-
 
     const [spots, setSpots] = useState([])
     const [loading, setLoading] = useState(true)
@@ -137,6 +143,45 @@ export default function ManageSpotsPage() {
         }
     }
 
+    // --- Submit Rating Logic ---
+    const submitRating = async () => {
+        if (!ratingBooking || ratingValue < 1 || ratingValue > 5) {
+            setRatingError('Please select a valid rating between 1 and 5.')
+            return
+        }
+        setRatingSubmitting(true)
+        setRatingError('')
+        try {
+            await axios.post(
+                `${API_BASE}/api/bookings/${ratingBooking.id}/rate-driver`,
+                { score: ratingValue },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders(),
+                    },
+                }
+            )
+            setRateModalOpen(false)
+            setRatingBooking(null)
+            setRatingValue(0)
+            await fetchOwnerBookings() // Refresh to update the UI (hide rate button)
+        } catch (e) {
+            const msg = e?.response?.data?.message || e?.message || 'Failed to submit rating.'
+            setRatingError(String(msg))
+        } finally {
+            setRatingSubmitting(false)
+        }
+    }
+
+    const openRateModal = (booking) => {
+        setRatingBooking(booking)
+        setRatingValue(0)
+        setRatingHover(0)
+        setRatingError('')
+        setRateModalOpen(true)
+    }
+
     const fetchMySpots = async () => {
         setLoading(true)
         setError('')
@@ -159,10 +204,6 @@ export default function ManageSpotsPage() {
             setLoading(false)
         }
     }
-
-    useEffect(() => {
-        fetchMySpots()
-    }, [])
 
     const openEditFor = (spot) => {
         setEditError('')
@@ -281,13 +322,13 @@ export default function ManageSpotsPage() {
 
                 <div className="ep-ms-tabs">
                     <button
-                        className={`ep-ms-tab ${tab === 'spots' ? 'ep-ms-tabActive' : ''}`}
+                        className={tab === 'spots' ? 'ep-ms-tab ep-ms-tabActive' : 'ep-ms-tab'}
                         onClick={() => setTab('spots')}
                     >
                         My Spots ({spots.length})
                     </button>
                     <button
-                        className={`ep-ms-tab ${tab === 'bookings' ? 'ep-ms-tabActive' : ''}`}
+                        className={tab === 'bookings' ? 'ep-ms-tab ep-ms-tabActive' : 'ep-ms-tab'}
                         onClick={() => setTab('bookings')}
                     >
                         Bookings ({bookings.length})
@@ -305,6 +346,8 @@ export default function ManageSpotsPage() {
                             <div className="ep-ms-grid">
                                 {bookings.map((b) => {
                                     const isPending = b.status === 'PENDING'
+                                    const isApproved = b.status === 'APPROVED'
+
                                     return (
                                         <div className="ep-ms-spotCard" key={b.id}>
                                             <div className="ep-ms-spotBody">
@@ -328,17 +371,25 @@ export default function ManageSpotsPage() {
                                                     </div>
 
                                                     <div style={{ fontWeight: 900, color: '#0f172a' }}>
-                                                        {b.totalPrice != null ? `₪${b.totalPrice}` : ''}
+                                                        {b.totalPrice != null ? '₪' + b.totalPrice : ''}
                                                     </div>
                                                 </div>
 
-                                                <div className="ep-ms-spotMeta" style={{ marginTop: 8 }}>
-                                                    <span>{b.parkingLocation ? `🅿️ ${b.parkingLocation}` : `Parking ID: ${b.parkingId}`}</span>
-                                                    <span>Parking ID: {b.parkingId}</span>
+                                                <div className="ep-ms-spotMeta" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span>{b.parkingLocation ? ('🅿️ ' + b.parkingLocation) : ('Parking ID: ' + b.parkingId)}</span>
+
+                                                    {/* --- Driver Rating Display --- */}
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#fffbeb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #fef3c7' }}>
+                                                        {"👤"} <span style={{ fontWeight: 700, color: '#d97706', fontSize: '12px' }}>
+                                                            {b.driverTotalRatings > 0
+                                                                ? ('★ ' + Number(b.driverRating).toFixed(1) + ' (' + b.driverTotalRatings + ')')
+                                                                : 'New Driver'}
+                                                        </span>
+                                                    </span>
                                                 </div>
 
-                                                <div className="ep-ms-spotMeta">
-                                                    <span>🕒</span>
+                                                <div className="ep-ms-spotMeta" style={{ marginTop: 8 }}>
+                                                    <span>{"🕒"}</span>
                                                     <span>
                                                         <b>Start:</b> {fmt(b.startTime)} &nbsp;&nbsp; <b>End:</b> {fmt(b.endTime)}
                                                     </span>
@@ -366,6 +417,19 @@ export default function ManageSpotsPage() {
                                                             {bookingSavingId === b.id ? 'Saving…' : 'Reject'}
                                                         </button>
                                                     </>
+                                                ) : isApproved && !b.isRatedByOwner ? (
+                                                    // --- Rate Driver Action ---
+                                                    <button
+                                                        className="ep-ms-btn"
+                                                        onClick={() => openRateModal(b)}
+                                                        style={{ background: '#f59e0b', border: 0, color: 'white', fontWeight: 900, width: '100%' }}
+                                                    >
+                                                        ★ Rate Driver
+                                                    </button>
+                                                ) : isApproved && b.isRatedByOwner ? (
+                                                    <div style={{ fontWeight: 800, color: '#10b981', padding: '10px 6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '16px' }}>✓</span> Driver Rated
+                                                    </div>
                                                 ) : (
                                                     <div style={{ fontWeight: 800, color: '#64748b', padding: '10px 6px' }}>
                                                         No actions available.
@@ -396,7 +460,7 @@ export default function ManageSpotsPage() {
                                     const price = spot.pricePerHour != null ? Number(spot.pricePerHour) : null
 
                                     return (
-                                        <div key={spot.id ?? `${spot.lat}-${spot.lng}`} style={{
+                                        <div key={spot.id ?? (spot.lat + '-' + spot.lng)} style={{
                                             backgroundColor: '#ffffff',
                                             borderRadius: '16px',
                                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025)',
@@ -406,7 +470,6 @@ export default function ManageSpotsPage() {
                                             flexDirection: 'column',
                                             transition: 'transform 0.2s ease',
                                         }}>
-                                            {/* Decorative Top Bar / Image Placeholder */}
                                             <div style={{
                                                 height: '140px',
                                                 position: 'relative',
@@ -441,7 +504,6 @@ export default function ManageSpotsPage() {
                                             </div>
 
                                             <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                                {/* Title & Address */}
                                                 <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>
                                                     {title}
                                                 </h3>
@@ -449,7 +511,6 @@ export default function ManageSpotsPage() {
                                                     📍 {fullAddress}
                                                 </div>
 
-                                                {/* Price */}
                                                 <div style={{ marginBottom: '20px' }}>
                                                     <span style={{ fontSize: '20px', fontWeight: '800', color: '#059669' }}>
                                                         ₪{price}
@@ -457,13 +518,9 @@ export default function ManageSpotsPage() {
                                                     <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}> / hour</span>
                                                 </div>
 
-                                                {/* Divider */}
                                                 <div style={{ height: '1px', backgroundColor: '#f1f5f9', width: '100%', marginBottom: '16px', marginTop: 'auto' }}></div>
 
-                                                {/* Actions & Toggle */}
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-
-                                                    {/* Toggle Switch (Modern Style) */}
                                                     <div
                                                         onClick={() => !locked && toggleActive(spot)}
                                                         style={{
@@ -502,7 +559,6 @@ export default function ManageSpotsPage() {
                                                         </span>
                                                     </div>
 
-                                                    {/* Edit / Details Buttons */}
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button
                                                             onClick={() => openEditAvailabilityFor(spot)}
@@ -564,23 +620,75 @@ export default function ManageSpotsPage() {
                     </Modal>
                 )}
 
+                {/* --- RATE DRIVER MODAL --- */}
+                {rateModalOpen && ratingBooking && (
+                    <Modal onClose={() => setRateModalOpen(false)}>
+                        <div style={{ width: '360px', maxWidth: '90vw', margin: '0 auto', textAlign: 'center' }}>
+                            <div style={{ marginBottom: '24px' }}>
+                                <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>Rate the Driver</h2>
+                                <p style={{ marginTop: '8px', fontSize: '14px', color: '#64748b', lineHeight: '1.5' }}>
+                                    How was your experience with the driver for Booking #{ratingBooking.id}?
+                                </p>
+                            </div>
+
+                            {ratingError && (
+                                <div style={{ marginBottom: '20px', padding: '12px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '10px', fontSize: '14px' }}>
+                                    {ratingError}
+                                </div>
+                            )}
+
+                            {/* Stars Rating Interactive */}
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '32px' }}>
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <span
+                                        key={star}
+                                        onClick={() => setRatingValue(star)}
+                                        onMouseEnter={() => setRatingHover(star)}
+                                        onMouseLeave={() => setRatingHover(0)}
+                                        style={{
+                                            fontSize: '40px',
+                                            cursor: 'pointer',
+                                            color: star <= (ratingHover || ratingValue) ? '#f59e0b' : '#e2e8f0',
+                                            transition: 'color 0.2s, transform 0.1s',
+                                            transform: star === ratingHover ? 'scale(1.1)' : 'scale(1)'
+                                        }}
+                                    >
+                                        ★
+                                    </span>
+                                ))}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={() => setRateModalOpen(false)}
+                                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#fff', fontWeight: '600', color: '#64748b', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={submitRating}
+                                    disabled={ratingSubmitting || ratingValue === 0}
+                                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: ratingValue > 0 ? '#0f172a' : '#cbd5e1', fontWeight: '600', color: '#fff', cursor: ratingValue > 0 ? 'pointer' : 'not-allowed', opacity: ratingSubmitting ? 0.7 : 1 }}>
+                                    {ratingSubmitting ? 'Submitting...' : 'Submit Rating'}
+                                </button>
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+
                 {/* --- EDIT SPOT MODAL --- */}
                 {editOpen && (
                     <Modal onClose={() => setEditOpen(false)}>
                         <div style={{ width: '360px', maxWidth: '90vw', boxSizing: 'border-box', margin: '0 auto' }}>
-                            {/* Header */}
                             <div style={{ marginBottom: '24px' }}>
                                 <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>Edit Spot</h2>
                             </div>
 
-                            {/* Error */}
                             {editError && (
                                 <div style={{ marginBottom: '20px', padding: '12px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '10px', fontSize: '14px' }}>
                                     {editError}
                                 </div>
                             )}
 
-                            {/* Price Input */}
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Price per Hour</label>
                                 <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: '12px', height: '50px', overflow: 'hidden' }}>
@@ -602,14 +710,13 @@ export default function ManageSpotsPage() {
                                 </div>
                             </div>
 
-                            {/* Toggles Section  */}
                             <div style={{ marginBottom: '30px' }}>
                                 <div
                                     onClick={() => setEditForm(p => ({ ...p, covered: !p.covered }))}
                                     style={{
                                         padding: '16px',
                                         borderRadius: '16px',
-                                        border: `1px solid ${editForm.covered ? '#3b82f6' : '#e2e8f0'}`,
+                                        border: editForm.covered ? '1px solid #3b82f6' : '1px solid #e2e8f0',
                                         backgroundColor: editForm.covered ? '#eff6ff' : '#fff',
                                         cursor: 'pointer',
                                         display: 'flex',
@@ -620,14 +727,12 @@ export default function ManageSpotsPage() {
                                     }}>
                                     <span style={{ fontSize: '14px', fontWeight: '600', color: editForm.covered ? '#1e40af' : '#64748b' }}>Is Covered?</span>
 
-                                    {/* Toggle Visual */}
                                     <div style={{ width: '44px', height: '24px', backgroundColor: editForm.covered ? '#3b82f6' : '#cbd5e1', borderRadius: '20px', position: 'relative' }}>
                                         <div style={{ width: '20px', height: '20px', backgroundColor: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: editForm.covered ? '22px' : '2px', transition: 'left 0.2s' }} />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Buttons */}
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button
                                     onClick={() => setEditOpen(false)}
@@ -644,12 +749,11 @@ export default function ManageSpotsPage() {
                         </div>
                     </Modal>
                 )}
+
                 {/* --- DETAILS MODAL --- */}
                 {detailsSpot && (
                     <Modal onClose={() => setDetailsSpot(null)}>
-
                         <div style={{ width: '360px', maxWidth: '90vw', borderRadius: '16px', overflow: 'hidden', margin: '0 auto', backgroundColor: '#fff' }}>
-                            {/* Map Header Placeholder / Image */}
                             <div style={{ height: '180px', width: '100%', position: 'relative', borderBottom: '1px solid #e2e8f0' }}>
                                 <img
                                     src="/spot.png"
@@ -662,10 +766,9 @@ export default function ManageSpotsPage() {
                                 <h2 style={{ marginTop: 0, marginBottom: '4px', fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>{detailsSpot.location?.split(',')[0]}</h2>
                                 <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.5' }}>{detailsSpot.location}</p>
 
-                                {/* --- הצגת תיאור החנייה במידה ויש --- */}
                                 {detailsSpot.description && (
                                     <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>
-                                        "{detailsSpot.description}"
+                                        &quot;{detailsSpot.description}&quot;
                                     </p>
                                 )}
 
@@ -694,7 +797,7 @@ export default function ManageSpotsPage() {
                                             <span style={{ padding: '4px 10px', backgroundColor: '#ffffff', color: '#64748b', borderRadius: '20px', fontSize: '12px', fontWeight: '600', border: '1px solid #e2e8f0' }}>Uncovered</span>
                                         )}
                                         <span style={{ padding: '4px 10px', backgroundColor: '#ffffff', color: '#64748b', borderRadius: '20px', fontSize: '12px', fontWeight: '600', border: '1px solid #e2e8f0' }}>
-                                            {detailsSpot.lat && detailsSpot.lng ? `${detailsSpot.lat.toFixed(4)}, ${detailsSpot.lng.toFixed(4)}` : 'No Coords'}
+                                            {detailsSpot.lat && detailsSpot.lng ? (detailsSpot.lat.toFixed(4) + ', ' + detailsSpot.lng.toFixed(4)) : 'No Coords'}
                                         </span>
                                     </div>
                                 </div>
