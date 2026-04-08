@@ -5,8 +5,9 @@ import Layout from '../components/layout/layout'
 import Modal from '../components/modals/Modal.jsx'
 import CreateParkingPage from './CreateParkingPage.jsx'
 import '../styles/manageSpots.css'
+import {API_BASE_URL} from "../config.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const API_BASE = API_BASE_URL
 
 function authHeaders() {
     const token = localStorage.getItem('easypark_token')

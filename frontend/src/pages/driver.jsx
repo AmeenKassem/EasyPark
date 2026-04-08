@@ -11,6 +11,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { generateTimeOptions } from '../utils/timeOptions'
 import TimeDropdown from '../components/inputs/TimeDropdown'
+import {API_BASE_URL} from "../config.js";
 
 const toYMD = (d) => {
     if (!d) return ''
@@ -313,7 +314,7 @@ export default function DriverPage() {
                 const max = Number(maxPrice)
                 if (Number.isFinite(max) && max > 0) params.maxPrice = max
 
-                const response = await axios.get('http://localhost:8080/api/parking-spots/search', {
+                const response = await axios.get(`${API_BASE_URL}/api/parking-spots/search`, {
                     params,
                     headers: { Authorization: `Bearer ${localStorage.getItem('easypark_token')}` },
                 })

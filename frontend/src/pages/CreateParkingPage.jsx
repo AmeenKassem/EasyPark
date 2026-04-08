@@ -6,6 +6,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import TimeDropdown from '../components/inputs/TimeDropdown'
 import { generateTimeOptions } from '../utils/timeOptions'
+import {API_BASE_URL} from "../config.js";
 
 const toYMD = (d) => {
     if (!d) return '';
@@ -320,7 +321,7 @@ const CreateParkingPage = ({ onClose, onCreated, onUpdated, mode = 'create', ini
                 payload.recurringSchedule = scheduleList
             }
 
-            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+            const API_BASE = API_BASE_URL
 
             if (mode === 'edit') {
                 if (!initialSpot?.id) throw new Error('Missing spot id for edit.')

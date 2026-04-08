@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import Layout from '../components/layout/layout'
 import { getCurrentUser, loginUser } from '../services/session'
-
+import { API_BASE_URL } from '../config'
 import '../styles/auth.css'
 
 function MailIcon() {
@@ -69,7 +69,7 @@ export default function LoginPage() {
         }
 
         try {
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email.trim(), password }),
@@ -92,7 +92,7 @@ export default function LoginPage() {
     async function loginWithGoogleIdToken(idToken) {
         setError('')
         try {
-            const res = await fetch('/api/auth/google-login', {
+            const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ googleIdToken: idToken }),

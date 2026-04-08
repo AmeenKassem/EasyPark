@@ -1,6 +1,7 @@
 import axios from 'axios'
+import {API_BASE_URL} from "../config.js";
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = API_BASE_URL
 
 function authHeaders() {
     const token = localStorage.getItem('easypark_token')
@@ -30,7 +31,7 @@ export async function cancelBooking(id) {
     return res.data
 }
 export async function getBusyIntervals(parkingId, from, to) {
-    const res = await axios.get(`http://localhost:8080/api/parking-spots/${parkingId}/busy`, {
+    const res = await axios.get(`${API_BASE_URL}/api/parking-spots/${parkingId}/busy`, {
         params: { from, to },
         headers: { Authorization: `Bearer ${localStorage.getItem('easypark_token')}` },
     });
