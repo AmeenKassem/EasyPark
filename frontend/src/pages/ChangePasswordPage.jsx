@@ -3,8 +3,9 @@ import axios from 'axios'
 import Layout from '../components/layout/layout'
 import '../styles/auth.css'
 import { loginUser, logout } from '../services/session'
+import {API_BASE_URL} from "../config.js";
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = API_BASE_URL
 
 export default function ChangePasswordPage() {
     const [saving, setSaving] = useState(false)

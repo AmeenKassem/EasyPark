@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import Layout from '../components/layout/layout'
 import '../styles/auth.css'
+import {API_BASE_URL} from "../config.js";
 
 export default function ResetPasswordPage() {
   const nav = useNavigate()
@@ -41,7 +42,7 @@ export default function ResetPasswordPage() {
 
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:8080/api/auth/reset-password', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback, forwardRef } from 're
 import { createBooking } from '../../services/booking'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import {API_BASE_URL} from "../../config.js";
 
 // ---------- Helpers ----------
 const addMinutesToTime = (timeStr, minutesToAdd) => {
@@ -485,7 +486,7 @@ export default function BookParkingModal({ isOpen, onClose, spot, onBooked }) {
                 const params = new URLSearchParams({ from: fromStr, to: toStr })
                 const token = localStorage.getItem('easypark_token')
 
-                const res = await fetch(`http://localhost:8080/api/parking-spots/${spot.id}/busy?${params}`, {
+                const res = await fetch(`${API_BASE_URL}/api/parking-spots/${spot.id}/busy?${params}`, {
                     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 })
 

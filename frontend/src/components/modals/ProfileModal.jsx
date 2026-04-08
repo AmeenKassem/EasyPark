@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { notifyAuthChanged } from '../../services/session'
 import { useNavigate, useLocation } from 'react-router-dom'
-
+import { API_BASE_URL } from '../../config';
 
 const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
     const [formData, setFormData] = useState({
@@ -28,10 +28,11 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
                 const token = localStorage.getItem('easypark_token');
                 if (!token) throw new Error("No token found");
 
-                const response = await axios.get('http://localhost:8080/api/users/me', {
+
+
+                const response = await axios.get(`${API_BASE_URL}/api/users/me`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                
                 const { fullName, phone, role } = response.data;
                 setFormData({
                     fullName: fullName || '',
@@ -83,7 +84,7 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
             // 1. Update Profile (Name & Phone)
             // The server now returns a new token in the response
 // 1) Update Profile
-            const profileRes = await axios.put('http://localhost:8080/api/users/me', {
+            const profileRes = await axios.put(`${API_BASE_URL}/api/users/me`, {
                 fullName: formData.fullName,
                 phone: formData.phone
             }, config)
@@ -95,7 +96,7 @@ const ProfileModal = ({ isOpen, onClose, onUpdateSuccess }) => {
             }
 
 // 2) Update Role
-            const roleRes = await axios.put('http://localhost:8080/api/users/me/role', {
+            const roleRes = await axios.put(`${API_BASE_URL}/api/users/me/role`, {
                 role: formData.role
             }, config)
 

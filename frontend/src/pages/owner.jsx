@@ -3,6 +3,7 @@ import axios from 'axios'
 import Layout from '../components/layout/layout'
 import CreateParkingPage from '../pages/CreateParkingPage.jsx'
 import Modal from '../components/modals/Modal.jsx'
+import {API_BASE_URL} from "../config.js";
 
 export default function OwnerPage() {
     const [createOpen, setCreateOpen] = useState(false)
@@ -30,7 +31,7 @@ export default function OwnerPage() {
 
 
 
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+    const API_BASE = API_BASE_URL
     const authHeader = () => ({
         Authorization: `Bearer ${localStorage.getItem('easypark_token')}`,
     })

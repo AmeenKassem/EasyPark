@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../components/layout/layout'
 import { loginUser } from '../services/session'
 import '../styles/auth.css'
-
+import {API_BASE_URL} from "../config.js";
 import PhoneInput from 'react-phone-input-2'
 import 'react-phone-input-2/lib/material.css'
 import { isValidPhoneNumber } from 'libphonenumber-js'
@@ -115,7 +115,7 @@ export default function RegisterPage() {
         }
 
         try {
-            const res = await fetch('/api/auth/register', {
+            const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
