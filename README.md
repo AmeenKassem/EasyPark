@@ -46,6 +46,7 @@ EasyPark is built as a client-server web application:
 - **Database**: MySQL
 - **Authentication**: JWT + Google OAuth support
 - **Mail**: Gmail SMTP for password reset emails
+- **Containerization**: Docker + Docker Compose
 
 ### Backend Structure
 
@@ -92,6 +93,10 @@ EasyPark is built as a client-server web application:
 - `react-phone-input-2`
 - `libphonenumber-js`
 
+### DevOps / Local Setup
+- Docker
+- Docker Compose
+
 ---
 
 ## 📁 Project Structure
@@ -127,16 +132,120 @@ EasyPark/
 │   │   ├── App.jsx
 │   │   ├── config.js
 │   │   └── main.jsx
+│   ├── Dockerfile
 │   └── package.json
 │
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
 └── pom.xml
 ```
 
 ---
 
-## 🚀 Prerequisites
+## 🚀 Quick Start with Docker
 
-Before running the project, install:
+This is the easiest way to run EasyPark locally.
+
+### Prerequisites
+
+Before running the project with Docker, install:
+
+- **Docker Desktop**
+- **Git**
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/AmeenKassem/EasyPark
+cd EasyPark
+```
+
+### 2. Start the full application
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- **MySQL** database
+- **Backend** on `http://localhost:8080`
+- **Frontend** on `http://localhost:5173`
+
+### 3. Open the application
+
+```text
+http://localhost:5173
+```
+
+### 4. Stop the application
+
+```bash
+docker compose down
+```
+
+To also remove database data volume:
+
+```bash
+docker compose down -v
+```
+
+Be careful: `-v` deletes the stored MySQL data.
+
+---
+
+## 🐳 Docker Notes
+
+### Why Docker makes setup easier
+
+Without Docker, a new developer needs to install and configure:
+
+- Java 21
+- Maven
+- Node.js and npm
+- MySQL
+- database creation
+- backend and frontend startup
+
+With Docker, the main prerequisites become:
+
+- Docker Desktop
+- Git
+
+and the project can be started with one command:
+
+```bash
+docker compose up --build
+```
+
+## ⚙️ Docker Configuration Example
+
+A typical backend datasource URL in Docker Compose should look like this:
+
+```yaml
+SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/easypark?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Jerusalem
+```
+
+
+If port `3306` on your computer is already in use, you can expose MySQL on another host port such as:
+
+```yaml
+ports:
+  - "3307:3306"
+```
+
+That does **not** change how the backend talks to the database inside Docker.
+
+---
+
+## 💻 Manual Setup (Without Docker)
+
+Use this only if you want to run everything manually.
+
+### Prerequisites
+
+Install:
 
 - **Java 21**
 - **Maven**
@@ -154,16 +263,10 @@ node -v
 npm -v
 ```
 
----
-
-## ⚙️ Environment Setup
-
-EasyPark requires both the backend and frontend to be configured.
-
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/AmeenKassem/EasyPark
 cd EasyPark
 ```
 
@@ -188,7 +291,7 @@ A safe example configuration:
 ```properties
 spring.application.name=easypark-backend
 
-spring.datasource.url=jdbc:mysql://localhost:3306/easypark?useSSL=false&serverTimezone=Asia/Jerusalem
+spring.datasource.url=jdbc:mysql://localhost:3306/easypark?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Jerusalem
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.datasource.username=root
 spring.datasource.password=YOUR_DB_PASSWORD
@@ -221,7 +324,7 @@ app.frontend.reset-password-url=http://localhost:5173/reset-password
 app.security.reset-token-expiration-minutes=30
 ```
 
-## 💻 Running the Backend
+### 4. Run the backend
 
 From the project root:
 
@@ -236,9 +339,7 @@ The backend runs by default at:
 http://localhost:8080
 ```
 
----
-
-## 💻 Running the Frontend
+### 5. Run the frontend
 
 Open a new terminal and go to the frontend folder:
 
@@ -254,7 +355,7 @@ The frontend will usually run at:
 http://localhost:5173
 ```
 
-### Frontend API configuration
+### 6. Frontend API configuration
 
 Frontend API base URL is defined in:
 
@@ -400,10 +501,15 @@ npm run build
 
 ---
 
-## ✅ Recommended Local Startup Order
+## ✅ Recommended Startup Order
 
-When running locally, start the system in this order:
+### With Docker
+1. Run `docker compose up --build`
+2. Open `http://localhost:5173`
+3. Register or log in
+4. Test owner/driver flows
 
+### Without Docker
 1. Start **MySQL**
 2. Make sure the `easypark` database exists
 3. Start the **backend**
@@ -418,28 +524,32 @@ When running locally, start the system in this order:
 
 A new developer can verify the project with this flow:
 
-1. Run MySQL locally
-2. Create the `easypark` database
-3. Configure `application.properties`
-4. Start the backend
-5. Start the frontend
-6. Open `http://localhost:5173`
-7. Register a new account
-8. Log in
-9. If the user is an owner, create a parking spot
-10. If the user is a driver, search for parking and test booking flows
+1. Start the system with Docker
+2. Open `http://localhost:5173`
+3. Register a new account
+4. Log in
+5. If the user is an owner, create a parking spot
+6. If the user is a driver, search for parking and test booking flows
 
 ---
 
 ## 🔧 Troubleshooting
 
+### Docker setup does not start
+Check:
+
+- Docker Desktop is running
+- ports `5173`, `8080`, and the chosen MySQL host port are free
+- `docker-compose.yml` is present in the project root
+- Docker images built successfully
+
 ### Backend does not start
 Check:
 
-- Java 21 is installed
+- datasource URL is correct
 - MySQL is running
-- the `easypark` database exists
-- `application.properties` contains valid DB credentials
+- `allowPublicKeyRetrieval=true` is included when needed
+- JWT/mail/Google config values are valid
 - port `8080` is not already in use
 
 ### Frontend cannot reach backend
@@ -467,7 +577,7 @@ Check:
 ### Database issues
 Check:
 
-- MySQL is running on port `3306`
+- MySQL is running
 - database name is `easypark`
 - username/password are correct
 - your MySQL user has permission to access the database
@@ -505,12 +615,11 @@ Ben-Gurion University - Software Engineering Seminar
 
 If you encounter issues while running the project:
 
-1. Make sure Java, Maven, Node.js, npm, and MySQL are installed correctly
-2. Verify that the database exists and credentials are correct
-3. Check that `application.properties` is configured
+1. Prefer the Docker setup first
+2. Verify that required secrets/config values are present
+3. Check that frontend and backend are running on the expected ports
 4. Run backend tests with `mvn test`
 5. Run frontend checks with `npm run lint` and `npm run build`
-6. Confirm both frontend and backend are running on the expected ports
 
 ---
 
