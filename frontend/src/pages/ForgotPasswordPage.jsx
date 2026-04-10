@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Layout from '../components/layout/layout'
 import '../styles/auth.css'
+import {API_BASE_URL} from "../config.js";
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = API_BASE_URL
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState('')

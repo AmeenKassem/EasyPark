@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api'
 import axios from 'axios'
 import { getAuthToken } from "../../services/session";
+import {API_BASE_URL} from "../../config.js";
 
 const containerStyle = { width: '100%', height: '100%' }
 const defaultCenter = { lat: 32.0853, lng: 34.7818 }
@@ -222,7 +223,7 @@ export default function MapComponent({
 
         const fetchSpots = async () => {
             try {
-                const res = await axios.get('http://localhost:8080/api/parking-spots/search')
+                const res = await axios.get(`${API_BASE_URL}/api/parking-spots/search`)
                 const valid = (res.data || []).filter((s) => s.lat != null && s.lng != null && s?.active)
                 setApiSpots(valid)
             } catch (e) {
