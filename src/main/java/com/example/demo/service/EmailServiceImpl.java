@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.demo.dto.UserSummary;
 import com.example.demo.model.Booking;
+import org.springframework.scheduling.annotation.Async;
 
 @Service
 public class EmailServiceImpl implements EmailService {
@@ -59,6 +60,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    @Async
     public void sendBookingApprovedNotification(String toEmail, Booking booking, UserSummary ownerSummary) {
         log.info("action=email_approved start to={}", safeEmail(toEmail));
 
@@ -89,9 +91,8 @@ public class EmailServiceImpl implements EmailService {
         try {
             mailSender.send(message);
             log.info("action=email_approved success to={}", safeEmail(toEmail));
-        } catch (Exception ex) {
+        }catch (Exception ex) {
             log.error("action=email_approved fail to={} reason={}", safeEmail(toEmail), ex.getClass().getSimpleName(), ex);
-            throw ex;
         }
     }
 }
