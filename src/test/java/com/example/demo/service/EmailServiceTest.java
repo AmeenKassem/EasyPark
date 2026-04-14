@@ -1,55 +1,81 @@
 package com.example.demo.service;
 
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.Response;
+import com.sendgrid.SendGrid;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.mockito.MockedConstruction;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.verify;
+import java.io.IOException;
+import java.util.Collections;
 
-@ExtendWith(MockitoExtension.class)
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 class EmailServiceTest {
 
-    @Mock
-    private JavaMailSender mailSender;
-
-    @InjectMocks
     private EmailServiceImpl emailService;
 
     @BeforeEach
     void setUp() {
-        // מדמה את הערך ב-application.properties
+        emailService = new EmailServiceImpl();
+
         ReflectionTestUtils.setField(emailService, "fromAddress", "noreply@easypark.com");
+        ReflectionTestUtils.setField(emailService, "sendGridApiKey", "test-api-key");
     }
 
     @Test
-    void sendPasswordResetEmail_ShouldConstructAndSendCorrectMessage() {
-        // Arrange
+    void sendPasswordResetEmail_ShouldConstructAndSendCorrectRequest() throws IOException {
         String toEmail = "user@example.com";
         String resetLink = "http://localhost:8080/reset?token=xyz";
 
-        // Act
-        emailService.sendPasswordResetEmail(toEmail, resetLink);
+        try (MockedConstruction<SendGrid> mocked = mockConstruction(
+                SendGrid.class,
+                (mock, context) -> when(mock.api(any(Request.class)))
+                        .thenReturn(new Response(202, "", Collections.emptyMap()))
+        )) {
+            emailService.sendPasswordResetEmail(toEmail, resetLink);
 
-        // Assert
-        // אנחנו תופסים את האובייקט שנשלח ל-mailSender כדי לבדוק אותו
-        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(messageCaptor.capture());
+            SendGrid constructed = mocked.constructed().get(0);
 
-        SimpleMailMessage sentMessage = messageCaptor.getValue();
+            ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+            verify(constructed).api(requestCaptor.capture());
 
-        assertEquals("noreply@easypark.com", sentMessage.getFrom());
-        assertEquals(toEmail, sentMessage.getTo()[0]);
-        assertEquals("Reset your password", sentMessage.getSubject());
+            Request sentRequest = requestCaptor.getValue();
 
-        // בודקים שגוף ההודעה מכיל את הלינק
-        assertTrue(sentMessage.getText().contains(resetLink), "Email body must contain the reset link");
+            assertEquals(Method.POST, sentRequest.getMethod());
+            assertEquals("mail/send", sentRequest.getEndpoint());
+
+            String body = sentRequest.getBody();
+            assertNotNull(body);
+            assertTrue(body.contains("noreply@easypark.com"));
+            assertTrue(body.contains(toEmail));
+            assertTrue(body.contains("Reset your password"));
+            assertTrue(body.contains(resetLink));
+        }
+    }
+
+    @Test
+    void sendPasswordResetEmail_ShouldThrow_WhenSendGridFails() throws IOException {
+        String toEmail = "user@example.com";
+        String resetLink = "http://localhost:8080/reset?token=xyz";
+
+        try (MockedConstruction<SendGrid> mocked = mockConstruction(
+                SendGrid.class,
+                (mock, context) -> when(mock.api(any(Request.class)))
+                        .thenReturn(new Response(500, "boom", Collections.emptyMap()))
+        )) {
+            RuntimeException ex = assertThrows(
+                    RuntimeException.class,
+                    () -> emailService.sendPasswordResetEmail(toEmail, resetLink)
+            );
+
+            assertTrue(ex.getMessage().contains("Failed to send password reset email"));
+        }
     }
 }
