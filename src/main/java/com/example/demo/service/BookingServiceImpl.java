@@ -152,6 +152,8 @@ public class BookingServiceImpl implements BookingService {
                 Long ownerId = booking.getParking().getOwnerId();
                 userRepository.findById(ownerId).ifPresent(owner -> {
                     booking.setOwnerPhone(owner.getPhone());
+                    booking.setOwnerBitQrImageUrl(owner.getBitQrImageUrl());
+                    booking.setOwnerBitPaymentUrl(owner.getBitPaymentUrl());
                 });
             }
         }
