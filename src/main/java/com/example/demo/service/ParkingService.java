@@ -28,15 +28,18 @@ public class ParkingService {
     private final ParkingRepository parkingRepository;
     private final BookingRepository bookingRepository;
     private final ParkingRatingRepository parkingRatingRepository;
+    private final NotificationService notificationService;
     private static final Collection<BookingStatus> BUSY_STATUSES =
             List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
 
     public ParkingService(ParkingRepository parkingRepository,
                           BookingRepository bookingRepository,
-                          ParkingRatingRepository parkingRatingRepository) {
+                          ParkingRatingRepository parkingRatingRepository,
+                          NotificationService notificationService) {
         this.parkingRepository = parkingRepository;
         this.bookingRepository = bookingRepository;
         this.parkingRatingRepository = parkingRatingRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -235,6 +238,13 @@ public class ParkingService {
 
         log.info("action=parking_rate success userId={} parkingId={} rating={} updated={} newAverage={} ratingCount={}",
                 userId, parkingId, rating, isUpdate, saved.getAverageRating(), saved.getRatingCount());
+
+        // Create notification for the owner
+        notificationService.createNotification(
+            p.getOwnerId(),
+            "New Rating Received",
+            "Your parking spot received a " + rating + " star rating from a driver."
+        );
 
         return saved;
     }

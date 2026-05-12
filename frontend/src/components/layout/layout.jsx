@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getCurrentUser, logout, subscribeAuthChanged } from '../../services/session'
+import { getUnreadNotificationCount, subscribeNotificationsChanged } from '../../services/notifications'
 import '../../styles/layout.css'
 import ProfileModal from '../modals/ProfileModal'
 
@@ -34,6 +35,7 @@ export default function Layout({ title, children }) {
     // (kept for future use) modal that edits profile/role
     const [profileModalOpen, setProfileModalOpen] = useState(false)
     const [user, setUser] = useState(getCurrentUser())
+    const [unreadNotifications, setUnreadNotifications] = useState(0)
 
     // Responsive label for Back button
     const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
@@ -48,13 +50,27 @@ export default function Layout({ title, children }) {
     }, [])
 
     useEffect(() => {
-        // initial sync (covers cases where storage changed before mount)
-        setUser(getCurrentUser())
+        const syncUser = async () => {
+            const current = getCurrentUser()
+            setUser(current)
+            if (!current?.id) {
+                setUnreadNotifications(0)
+                return
+            }
+            const count = await getUnreadNotificationCount(current.id)
+            setUnreadNotifications(count)
+        }
 
-        // re-render when auth changes
-        return subscribeAuthChanged(() => {
-            setUser(getCurrentUser())
-        })
+        // initial sync (covers cases where storage changed before mount)
+        syncUser()
+
+        const cleanupAuth = subscribeAuthChanged(syncUser)
+        const cleanupNotifications = subscribeNotificationsChanged(syncUser)
+
+        return () => {
+            cleanupAuth()
+            cleanupNotifications()
+        }
     }, [])
 
     const roles = new Set(user?.roles ?? [])
@@ -83,6 +99,10 @@ export default function Layout({ title, children }) {
     }
 
     useEffect(() => {
+        if (profileMenuOpen) {
+            setUnreadNotifications(getUnreadNotificationCount(user?.id))
+        }
+
         if (!profileMenuOpen) return
 
         const onResizeOrScroll = () => {
@@ -202,9 +222,32 @@ export default function Layout({ title, children }) {
                                         display: 'grid',
                                         placeItems: 'center',
                                         boxShadow: '0 10px 20px rgba(37, 99, 235, 0.25)',
+                                        position: 'relative',
                                     }}
                                 >
                                     <IconUser size={18} />
+                                    {unreadNotifications > 0 && (
+                                        <span
+                                            style={{
+                                                position: 'absolute',
+                                                top: 2,
+                                                right: 2,
+                                                minWidth: 18,
+                                                height: 18,
+                                                padding: '0 6px',
+                                                borderRadius: 999,
+                                                background: '#ef4444',
+                                                color: 'white',
+                                                fontSize: 12,
+                                                fontWeight: 800,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            {unreadNotifications}
+                                        </span>
+                                    )}
                                 </button>
                             </>
                         ) : (
@@ -340,6 +383,54 @@ export default function Layout({ title, children }) {
                                 My Bookings
                             </button>
                         )}
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setProfileMenuOpen(false)
+                                nav('/notifications')
+                            }}
+                            style={{
+                                width: '100%',
+                                height: 42,
+                                borderRadius: 12,
+                                border: 0,
+                                background: 'transparent',
+                                textAlign: 'left',
+                                padding: '0 12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                color: '#1e293b',
+                                marginBottom: '5px',
+                                transition: 'background 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <span>Notifications</span>
+                            {unreadNotifications > 0 && (
+                                <span
+                                    style={{
+                                        minWidth: 18,
+                                        height: 18,
+                                        padding: '0 6px',
+                                        borderRadius: 999,
+                                        background: '#ef4444',
+                                        color: 'white',
+                                        fontSize: 12,
+                                        fontWeight: 800,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    {unreadNotifications}
+                                </span>
+                            )}
+                        </button>
 
                         {/* --- revenues / expenses BUTTONS --- */}
                         <button

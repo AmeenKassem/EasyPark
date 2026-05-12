@@ -7,6 +7,7 @@ import MapComponent from '../components/map/mapComponent'
 import { logout, getCurrentUser, subscribeAuthChanged } from '../services/session'
 import ProfileModal from '../components/modals/ProfileModal'
 import BookParkingModal from '../components/modals/BookParkingModal'
+import Modal from '../components/modals/Modal'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { generateTimeOptions } from '../utils/timeOptions'
@@ -261,7 +262,7 @@ export default function DriverPage() {
     // UI Modals
     const [bookingOpen, setBookingOpen] = useState(false)
     const [bookingSpot, setBookingSpot] = useState(null)
-    const [bookingToast, setBookingToast] = useState('')
+    const [bookingSuccess, setBookingSuccess] = useState({ open: false, title: '', message: '' })
     const [profileOpen, setProfileOpen] = useState(false)
     const profileBtnRef = useRef(null)
     const [profileMenuPos, setProfileMenuPos] = useState({ top: 0, left: 0 })
@@ -812,6 +813,7 @@ export default function DriverPage() {
                     <div className= "profile-menu" style={{ position: 'absolute', top: profileMenuPos.top, left: profileMenuPos.left, width: 220, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(15, 23, 42, 0.10)', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)', borderRadius: 14, padding: 8 }}>
                         {roles.has('OWNER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/manage-spots') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: '#e2e8f0', textAlign: 'left', padding: '0 12px', fontWeight: 700, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Spots</button> )}
                         {roles.has('DRIVER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/my-bookings') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Bookings</button> )}
+                        <button type="button" onClick={() => { setProfileOpen(false); nav('/notifications') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Notifications</button>
                         <button type="button" onClick={() => { setProfileOpen(false); nav('/revenues') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Revenues</button>
                         <button type="button" onClick={() => { setProfileOpen(false); nav('/expenses') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Expenses</button>
                         <button type="button" onClick={() => { setProfileOpen(false); setProfileModalOpen(true); nav('/manage-profile') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Profile</button>
@@ -822,7 +824,39 @@ export default function DriverPage() {
             )}
 
             <ProfileModal isOpen={isProfileModalOpen} onClose={() => setProfileModalOpen(false)} onUpdateSuccess={(updatedUser) => { const u = updatedUser ?? getCurrentUser(); const nextRoles = new Set(u?.roles ?? []); if (nextRoles.has('OWNER') && !nextRoles.has('DRIVER')) { nav('/owner', { replace: true }); return; } }} />
-            <BookParkingModal isOpen={bookingOpen} spot={bookingSpot} onClose={() => setBookingOpen(false)} onBooked={(b) => { const total = b?.totalPrice != null ? `₪${b.totalPrice}` : ''; setBookingToast(`Booking created (#${b?.id}). Status: ${b?.status || 'PENDING'} ${total}`); setTimeout(() => setBookingToast(''), 3500) }} />
+            <BookParkingModal isOpen={bookingOpen} spot={bookingSpot} onClose={() => setBookingOpen(false)} onBooked={(b) => { const total = b?.totalPrice != null ? `₪${b.totalPrice}` : ''; setBookingSuccess({ open: true, title: 'Booking requested', message: `Your booking request for '${b?.parkingLocation || b?.parking?.location || 'the selected spot'}' has been sent. Status: ${b?.status || 'PENDING'}${total ? ` • ${total}` : ''}` }); }} />
+            {bookingSuccess.open && (
+                <Modal onClose={() => setBookingSuccess({ open: false, title: '', message: '' })}>
+                    <div style={{ textAlign: 'center', padding: '30px' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '16px', lineHeight: '1' }}>✅</div>
+                        <h3 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '22px', fontWeight: 'bold' }}>{bookingSuccess.title}</h3>
+                        <p style={{ color: '#475569', marginBottom: '24px', fontSize: '16px', whiteSpace: 'pre-wrap' }}>
+                            {bookingSuccess.message}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setBookingSuccess({ open: false, title: '', message: '' })}
+                            style={{
+                                backgroundColor: '#2563eb',
+                                color: 'white',
+                                border: 'none',
+                                padding: '12px 24px',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                fontWeight: '700',
+                                fontSize: '15px',
+                                transition: 'background-color 0.2s',
+                                width: '100%',
+                                maxWidth: '240px',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+                        >
+                            OK
+                        </button>
+                    </div>
+                </Modal>
+            )}
             {spotsListOpen && (
                 <div
                     style={{
@@ -1021,7 +1055,6 @@ export default function DriverPage() {
                     </div>
                 </div>
             )}
-            {bookingToast && ( <div style={{ position: 'absolute', left: 12, right: 12, bottom: 80, zIndex: 50000, pointerEvents: 'none' }}> <div style={{ pointerEvents: 'auto', background: 'rgba(255,255,255,0.96)', border: '1px solid rgba(15,23,42,0.12)', borderRadius: 14, padding: 12, boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)', fontWeight: 900, color: '#0f172a' }}>{bookingToast}</div></div>)}
         </div>
     )
 }
