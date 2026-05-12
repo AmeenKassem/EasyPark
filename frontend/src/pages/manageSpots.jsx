@@ -87,6 +87,9 @@ export default function ManageSpotsPage() {
     const [editAvailabilityOpen, setEditAvailabilityOpen] = useState(false)
     const [editAvailabilitySpot, setEditAvailabilitySpot] = useState(null)
 
+    // --- QR Code Warning State ---
+    const [showQrWarning, setShowQrWarning] = useState(false)
+
     const activeCount = useMemo(() => spots.filter((s) => !!s.active).length, [spots])
 
     const fetchOwnerBookings = async () => {
@@ -109,6 +112,24 @@ export default function ManageSpotsPage() {
             setBookingsLoading(false)
         }
     }
+
+    // --- Check if User has QR setup ---
+    useEffect(() => {
+        const checkUserProfile = async () => {
+            try {
+                const res = await axios.get(`${API_BASE}/api/users/me`, {
+                    headers: { ...authHeaders() },
+                })
+                if (!res.data?.bitQrImageUrl) {
+                    setShowQrWarning(true)
+                }
+            } catch (e) {
+                console.error('Failed to fetch user profile for QR check.', e)
+            }
+        }
+
+        checkUserProfile()
+    }, [])
 
     useEffect(() => {
         fetchMySpots();
@@ -817,6 +838,39 @@ export default function ManageSpotsPage() {
                                 fetchMySpots()
                             }}
                         />
+                    </Modal>
+                )}
+
+                {/* --- MISSING QR CODE MODAL --- */}
+                {showQrWarning && (
+                    <Modal onClose={() => nav('/manage-profile')}>
+                        <div style={{ width: '360px', maxWidth: '90vw', margin: '0 auto', textAlign: 'center' }}>
+                            <div style={{ marginBottom: '24px' }}>
+                                <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>
+                                    Payment Setup Required
+                                </h2>
+                                <p style={{ marginTop: '12px', fontSize: '14px', color: '#64748b', lineHeight: '1.5' }}>
+                                    You must upload a Bit QR code to receive payments before you can manage or add parking spots.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => nav('/manage-profile')}
+                                style={{
+                                    width: '100%',
+                                    padding: '14px',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    backgroundColor: '#0f172a',
+                                    fontWeight: '600',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    transition: 'background-color 0.2s'
+                                }}
+                            >
+                                Go to Manage Profile
+                            </button>
+                        </div>
                     </Modal>
                 )}
 
