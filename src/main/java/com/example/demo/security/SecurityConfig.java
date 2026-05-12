@@ -53,6 +53,7 @@ public class SecurityConfig {
                                 "/index.html",
                                 "/reset-password.html",
                                 "/Logo.png",
+                                "/uploads/**",
                                 "/h2-console/**",
                                 "/api/auth/register",
                                 "/api/auth/login",

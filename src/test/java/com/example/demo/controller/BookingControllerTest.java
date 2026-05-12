@@ -23,11 +23,18 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -105,6 +112,77 @@ class BookingControllerTest {
                         .principal(auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(555));
+    }
+
+    @Test
+    void create_ShouldHandleConcurrency_WhenMultipleUsersBookSameParking() throws Exception {
+        int numberOfThreads = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+
+        CountDownLatch readyLatch = new CountDownLatch(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numberOfThreads);
+
+        AtomicInteger successfulBookings = new AtomicInteger(0);
+        AtomicInteger failedBookings = new AtomicInteger(0);
+
+        CreateBookingRequest req = new CreateBookingRequest();
+        req.setParkingId(5L);
+        req.setStartTime(LocalDateTime.now().plusHours(1));
+        req.setEndTime(LocalDateTime.now().plusHours(3));
+
+        String reqJson = objectMapper.writeValueAsString(req);
+
+        AtomicBoolean isBooked = new AtomicBoolean(false);
+
+        when(bookingService.create(any(Long.class), any(CreateBookingRequest.class))).thenAnswer(invocation -> {
+            if (isBooked.compareAndSet(false, true)) {
+                Booking mockBooking = new Booking();
+                setEntityId(mockBooking, 555L);
+                mockBooking.setStatus(BookingStatus.PENDING);
+                return mockBooking;
+            } else {
+                throw new RuntimeException("Race condition: Parking is already booked!");
+            }
+        });
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Long driverId = 100L + i;
+
+            executor.submit(() -> {
+                try {
+                    TestingAuthenticationToken auth = new TestingAuthenticationToken(driverId, "PASSWORD", "ROLE_DRIVER");
+
+                    readyLatch.countDown();
+                    startLatch.await();
+
+                    MvcResult result = mockMvc.perform(post("/api/bookings")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(reqJson)
+                                    .principal(auth))
+                            .andReturn();
+
+                    if (result.getResponse().getStatus() == 200) {
+                        successfulBookings.incrementAndGet();
+                    } else {
+                        failedBookings.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    failedBookings.incrementAndGet();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+        doneLatch.await();
+
+        executor.shutdown();
+
+        assertEquals(1, successfulBookings.get(), "Only exactly ONE booking should succeed");
+        assertEquals(numberOfThreads - 1, failedBookings.get(), "All other concurrent requests should fail");
     }
 
     @Test
