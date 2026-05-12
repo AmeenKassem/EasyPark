@@ -42,6 +42,9 @@ class ParkingServiceTest {
     @Mock
     private ParkingRatingRepository parkingRatingRepository;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private ParkingService parkingService;
 
