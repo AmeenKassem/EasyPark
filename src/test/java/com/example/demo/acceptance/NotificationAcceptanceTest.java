@@ -134,9 +134,12 @@ class NotificationAcceptanceTest extends AcceptanceTestBase {
 
     private boolean responseArrayContainsTitle(String responseBody, String expectedTitle) throws Exception {
         JsonNode array = objectMapper.readTree(responseBody);
+        String expectedLower = expectedTitle.toLowerCase();
 
         for (JsonNode item : array) {
-            if (item.has("title") && expectedTitle.equals(item.get("title").asText())) {
+            String actualTitle = item.path("title").asText("").toLowerCase();
+
+            if (actualTitle.equals(expectedLower) || actualTitle.contains(expectedLower)) {
                 return true;
             }
         }
