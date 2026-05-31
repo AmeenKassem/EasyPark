@@ -6,6 +6,7 @@ import Modal from '../components/modals/Modal.jsx'
 import CreateParkingPage from './CreateParkingPage.jsx'
 import '../styles/manageSpots.css'
 import {API_BASE_URL} from "../config.js";
+import { updateBookingStatus as updateBookingStatusApi } from '../services/booking'
 
 const API_BASE = API_BASE_URL
 
@@ -141,16 +142,8 @@ export default function ManageSpotsPage() {
         setBookingSavingId(bookingId)
         setBookingsError('')
         try {
-            await axios.put(
-                `${API_BASE}/api/bookings/${bookingId}/status`,
-                { status }, // "APPROVED" | "REJECTED"
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...authHeaders(),
-                    },
-                },
-            )
+            // Shared with the notification approve/reject buttons (services/booking.js).
+            await updateBookingStatusApi(bookingId, status)
             await fetchOwnerBookings()
         } catch (e) {
             const msg =

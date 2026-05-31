@@ -12,6 +12,12 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "notifications")
 public class Notification {
+
+    /** Plain notification with no actionable payload. */
+    public static final String TYPE_GENERAL = "GENERAL";
+    /** Booking request sent to an owner — carries a bookingId and supports approve/reject. */
+    public static final String TYPE_BOOKING_REQUEST = "BOOKING_REQUEST";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "notification_id")
@@ -31,6 +37,15 @@ public class Notification {
 
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    // Kind of notification (see TYPE_* constants). Nullable so an `ddl-auto=update`
+    // ALTER on a populated table succeeds; null is treated as GENERAL on read.
+    @Column
+    private String type = TYPE_GENERAL;
+
+    // Related booking, for TYPE_BOOKING_REQUEST notifications (null otherwise).
+    @Column
+    private Long bookingId;
 
     public Notification() {
     }
@@ -81,5 +96,21 @@ public class Notification {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public Long getBookingId() {
+        return bookingId;
+    }
+
+    public void setBookingId(Long bookingId) {
+        this.bookingId = bookingId;
     }
 }
