@@ -10,20 +10,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: easypark
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=20
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,19 +21,11 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      # 'Make mvnw executable' step is removed as we are using the system mvn now
-
-      - name: Wait for MySQL to be ready
-        run: |
-          for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -proot && exit 0
-            sleep 2
-          done
-          echo "MySQL did not become ready in time" && exit 1
-
-      - name: Run tests with Maven (MySQL)
+      - name: Run tests with Maven
         env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/easypark?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-          SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: root
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:h2:mem:easypark_acceptance_tests;DB_CLOSE_DELAY=-1;MODE=MySQL
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+          SPRING_DATASOURCE_USERNAME: sa
+          SPRING_DATASOURCE_PASSWORD: ""
         run: mvn -B test
