@@ -34,9 +34,7 @@ public class NotificationController {
     public ResponseEntity<List<NotificationResponse>> list(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_list userId={}", userId);
-        List<NotificationResponse> out = notificationService.listForUser(userId)
-                .stream().map(NotificationResponse::from).toList();
-        return ResponseEntity.ok(out);
+        return ResponseEntity.ok(notificationService.listForUser(userId));
     }
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
@@ -52,9 +50,7 @@ public class NotificationController {
     public ResponseEntity<List<NotificationResponse>> markAllRead(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_mark_all_read userId={}", userId);
-        List<NotificationResponse> result = notificationService.markAllAsRead(userId)
-                .stream().map(NotificationResponse::from).toList();
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(notificationService.markAllAsRead(userId));
     }
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
@@ -62,7 +58,6 @@ public class NotificationController {
     public ResponseEntity<List<NotificationResponse>> clear(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_clear userId={}", userId);
-        notificationService.clearAll(userId);
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(notificationService.clearAll(userId));
     }
 }

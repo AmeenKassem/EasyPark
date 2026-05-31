@@ -91,13 +91,17 @@ public class BookingServiceImpl implements BookingService {
 
         Booking saved = bookingRepository.save(booking);
 
-        // Notify the parking owner about the new booking request.
+        // Notify the parking owner about the new booking request. Tagged as a
+        // BOOKING_REQUEST and linked to the booking so the owner can approve/reject
+        // straight from the notification item.
         if (parking.getOwnerId() != null) {
             notificationService.createNotification(
                     parking.getOwnerId(),
                     "New Booking Request",
                     String.format("%s requested your parking spot at %s.",
-                            driver.getFullName(), parking.getLocation())
+                            driver.getFullName(), parking.getLocation()),
+                    Notification.TYPE_BOOKING_REQUEST,
+                    saved.getId()
             );
         }
 
