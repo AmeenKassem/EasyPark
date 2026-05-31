@@ -12,6 +12,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { generateTimeOptions } from '../utils/timeOptions'
 import TimeDropdown from '../components/inputs/TimeDropdown'
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications'
 import {API_BASE_URL} from "../config.js";
 
 const toYMD = (d) => {
@@ -211,6 +212,8 @@ export default function DriverPage() {
 
     const [user, setUser] = useState(getCurrentUser())
     const roles = useMemo(() => new Set(user?.roles ?? []), [user])
+    // Real-time unread badge (connects WebSocket + tracks count on this page too).
+    const { unread: unreadNotifications, unreadLabel: unreadBadgeLabel } = useUnreadNotifications()
     const [spotsListOpen, setSpotsListOpen] = useState(false)
     const [selectedSpotFromList, setSelectedSpotFromList] = useState(null)
     // Map control
@@ -304,6 +307,22 @@ export default function DriverPage() {
     useEffect(() => {
         setUser(getCurrentUser())
     }, [location.key])
+
+    useEffect(() => {
+        const handleParkingCreated = (event) => {
+            const newSpot = event.detail
+            if (!newSpot?.id) return
+
+            setAllSpots((prev) => {
+                const current = Array.isArray(prev) ? prev : []
+                if (current.some((spot) => spot.id === newSpot.id)) return current
+                return [...current, newSpot]
+            })
+        }
+
+        window.addEventListener('easypark_parking_created', handleParkingCreated)
+        return () => window.removeEventListener('easypark_parking_created', handleParkingCreated)
+    }, [])
 
     // SERVER FETCH (only when server-query params change)
     useEffect(() => {
@@ -566,8 +585,13 @@ export default function DriverPage() {
                         </span>
                         <div style={{ fontWeight: 900, fontSize: 18, color: '#0549fa' }}>EasyPark</div>
                     </div>
-                    <button ref={profileBtnRef} type="button" onClick={() => { if (profileOpen) setProfileOpen(false); else openProfileMenu() }} aria-label="Profile menu" style={{ width: 42, height: 42, borderRadius: 999, border: 0, background: '#2563eb', color: 'white', cursor: 'pointer', display: 'grid', placeItems: 'center', boxShadow: '0 10px 20px rgba(37, 99, 235, 0.25)' }}>
+                    <button ref={profileBtnRef} type="button" onClick={() => { if (profileOpen) setProfileOpen(false); else openProfileMenu() }} aria-label="Profile menu" style={{ width: 42, height: 42, borderRadius: 999, border: 0, background: '#2563eb', color: 'white', cursor: 'pointer', display: 'grid', placeItems: 'center', boxShadow: '0 10px 20px rgba(37, 99, 235, 0.25)', position: 'relative' }}>
                         <IconUser size={18} />
+                        {unreadNotifications > 0 && (
+                            <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {unreadBadgeLabel}
+                            </span>
+                        )}
                     </button>
                 </div>
 
@@ -813,7 +837,14 @@ export default function DriverPage() {
                     <div className= "profile-menu" style={{ position: 'absolute', top: profileMenuPos.top, left: profileMenuPos.left, width: 220, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(15, 23, 42, 0.10)', boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)', borderRadius: 14, padding: 8 }}>
                         {roles.has('OWNER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/manage-spots') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: '#e2e8f0', textAlign: 'left', padding: '0 12px', fontWeight: 700, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Spots</button> )}
                         {roles.has('DRIVER') && ( <button type="button" onClick={() => { setProfileOpen(false); nav('/my-bookings') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Bookings</button> )}
-                        <button type="button" onClick={() => { setProfileOpen(false); nav('/notifications') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Notifications</button>
+                        <button type="button" onClick={() => { setProfileOpen(false); nav('/notifications') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>Notifications</span>
+                            {unreadNotifications > 0 && (
+                                <span style={{ minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, background: '#ef4444', color: 'white', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {unreadBadgeLabel}
+                                </span>
+                            )}
+                        </button>
                         <button type="button" onClick={() => { setProfileOpen(false); nav('/revenues') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Revenues</button>
                         <button type="button" onClick={() => { setProfileOpen(false); nav('/expenses') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>My Expenses</button>
                         <button type="button" onClick={() => { setProfileOpen(false); setProfileModalOpen(true); nav('/manage-profile') }} style={{ width: '100%', height: 42, borderRadius: 12, border: 0, background: 'transparent', textAlign: 'left', padding: '0 12px', fontWeight: 600, cursor: 'pointer', color: '#1e293b', marginBottom: '5px' }}>Manage Profile</button>

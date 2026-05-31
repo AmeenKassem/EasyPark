@@ -9,7 +9,6 @@ import com.example.demo.model.Booking;
 import com.example.demo.model.BookingStatus;
 import com.example.demo.service.BookingService;
 import com.example.demo.service.EmailService;
-import com.example.demo.service.NotificationService;
 import com.example.demo.service.RatingService;
 import com.example.demo.service.UserService;
 
@@ -34,14 +33,12 @@ public class BookingController {
 
     private final BookingService bookingService;
     private final EmailService emailService;
-    private final NotificationService notificationService;
     private final UserService userService;
     private final RatingService ratingService; // NEW
 
-    public BookingController(BookingService bookingService, EmailService emailService, NotificationService notificationService, UserService userService, RatingService ratingService) {
+    public BookingController(BookingService bookingService, EmailService emailService, UserService userService, RatingService ratingService) {
         this.bookingService = bookingService;
         this.emailService = emailService;
-        this.notificationService = notificationService;
         this.userService = userService;
         this.ratingService = ratingService; // NEW
     }
@@ -59,17 +56,6 @@ public class BookingController {
                 userId, req.getParkingId(), req.getStartTime(), req.getEndTime());
 
         Booking b = bookingService.create(userId, req);
-
-        if (b.getParking() != null && b.getParking().getOwnerId() != null) {
-            String ownerMessage = String.format(
-                    "New booking request from %s for spot '%s' from %s to %s.",
-                    b.getDriver().getFullName(),
-                    b.getParking().getLocation(),
-                    b.getStartTime(),
-                    b.getEndTime()
-            );
-            notificationService.createNotification(b.getParking().getOwnerId(), "New booking request", ownerMessage);
-        }
 
         log.info("action=booking_create success userId={} bookingId={} status={}",
                 userId, b.getId(), b.getStatus());
@@ -113,22 +99,11 @@ public class BookingController {
 
         Booking b = bookingService.updateStatus(ownerId, id, req);
 
+        // Driver notifications are created in BookingServiceImpl#updateStatus.
+        // The controller only owns the (optional) approval e-mail.
         if (b != null && b.getStatus().equals(BookingStatus.APPROVED)) {
             UserSummary ownerSummary = userService.getUserSummary(ownerId);
             emailService.sendBookingApprovedNotification(b.getDriver().getEmail(), b, ownerSummary);
-            // Create notification for driver
-            notificationService.createNotification(
-                b.getDriver().getId(),
-                "Booking Approved",
-                "Your booking request for " + b.getParking().getLocation() + " has been approved."
-            );
-        } else if (b != null && b.getStatus().equals(BookingStatus.REJECTED)) {
-            // Create notification for driver
-            notificationService.createNotification(
-                b.getDriver().getId(),
-                "Booking Rejected",
-                "Your booking request for " + b.getParking().getLocation() + " has been rejected."
-            );
         }
 
         log.info("action=booking_status_update success ownerId={} bookingId={} status={}",
@@ -144,12 +119,8 @@ public class BookingController {
 
         Booking b = bookingService.cancel(userId, id);
 
-        // Create notification for owner
-        notificationService.createNotification(
-            b.getParking().getOwnerId(),
-            "Booking Cancelled",
-            "A driver has cancelled their booking for " + b.getParking().getLocation() + "."
-        );
+        // Owner notification is created in BookingServiceImpl#cancel (only when an
+        // actual cancellation occurs, never on a no-op re-cancel).
 
         log.info("action=booking_cancel success userId={} bookingId={} status={}",
                 userId, b.getId(), b.getStatus());
