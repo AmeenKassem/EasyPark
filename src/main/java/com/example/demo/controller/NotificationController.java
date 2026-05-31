@@ -1,6 +1,6 @@
 package com.example.demo.controller;
 
-import com.example.demo.model.Notification;
+import com.example.demo.dto.NotificationResponse;
 import com.example.demo.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,10 +31,12 @@ public class NotificationController {
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
     @GetMapping
-    public ResponseEntity<List<Notification>> list(Authentication auth) {
+    public ResponseEntity<List<NotificationResponse>> list(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_list userId={}", userId);
-        return ResponseEntity.ok(notificationService.listForUser(userId));
+        List<NotificationResponse> out = notificationService.listForUser(userId)
+                .stream().map(NotificationResponse::from).toList();
+        return ResponseEntity.ok(out);
     }
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
@@ -47,19 +49,20 @@ public class NotificationController {
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
     @PutMapping("/read-all")
-    public ResponseEntity<List<Notification>> markAllRead(Authentication auth) {
+    public ResponseEntity<List<NotificationResponse>> markAllRead(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_mark_all_read userId={}", userId);
-        List<Notification> result = notificationService.markAllAsRead(userId);
+        List<NotificationResponse> result = notificationService.markAllAsRead(userId)
+                .stream().map(NotificationResponse::from).toList();
         return ResponseEntity.ok(result);
     }
 
     @PreAuthorize("hasAnyRole('DRIVER','OWNER')")
     @DeleteMapping
-    public ResponseEntity<List<Notification>> clear(Authentication auth) {
+    public ResponseEntity<List<NotificationResponse>> clear(Authentication auth) {
         Long userId = currentUserId(auth);
         log.info("action=notifications_clear userId={}", userId);
-        List<Notification> result = notificationService.clearAll(userId);
-        return ResponseEntity.ok(result);
+        notificationService.clearAll(userId);
+        return ResponseEntity.ok(List.of());
     }
 }

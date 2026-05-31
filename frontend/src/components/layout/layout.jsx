@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getCurrentUser, logout, subscribeAuthChanged } from '../../services/session'
-import { getUnreadNotificationCount, subscribeNotificationsChanged } from '../../services/notifications'
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications'
 import '../../styles/layout.css'
 import ProfileModal from '../modals/ProfileModal'
 
@@ -35,7 +35,8 @@ export default function Layout({ title, children }) {
     // (kept for future use) modal that edits profile/role
     const [profileModalOpen, setProfileModalOpen] = useState(false)
     const [user, setUser] = useState(getCurrentUser())
-    const [unreadNotifications, setUnreadNotifications] = useState(0)
+    // Shared real-time unread badge (also opens the WebSocket connection).
+    const { unread: unreadNotifications, unreadLabel: unreadBadgeLabel, refreshUnread } = useUnreadNotifications()
 
     // Responsive label for Back button
     const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
@@ -50,27 +51,9 @@ export default function Layout({ title, children }) {
     }, [])
 
     useEffect(() => {
-        const syncUser = async () => {
-            const current = getCurrentUser()
-            setUser(current)
-            if (!current?.id) {
-                setUnreadNotifications(0)
-                return
-            }
-            const count = await getUnreadNotificationCount(current.id)
-            setUnreadNotifications(count)
-        }
-
-        // initial sync (covers cases where storage changed before mount)
-        syncUser()
-
-        const cleanupAuth = subscribeAuthChanged(syncUser)
-        const cleanupNotifications = subscribeNotificationsChanged(syncUser)
-
-        return () => {
-            cleanupAuth()
-            cleanupNotifications()
-        }
+        // Keep the local user in sync with login/logout (used for roles/menu).
+        setUser(getCurrentUser())
+        return subscribeAuthChanged(() => setUser(getCurrentUser()))
     }, [])
 
     const roles = new Set(user?.roles ?? [])
@@ -100,7 +83,9 @@ export default function Layout({ title, children }) {
 
     useEffect(() => {
         if (profileMenuOpen) {
-            setUnreadNotifications(getUnreadNotificationCount(user?.id))
+            // Refresh the count when the menu opens (await it — getUnreadNotificationCount
+            // is async; assigning the Promise directly would corrupt the badge state).
+            refreshUnread()
         }
 
         if (!profileMenuOpen) return
@@ -122,7 +107,7 @@ export default function Layout({ title, children }) {
             window.removeEventListener('resize', onResizeOrScroll)
             window.removeEventListener('scroll', onResizeOrScroll, true)
         }
-    }, [profileMenuOpen])
+    }, [profileMenuOpen, refreshUnread])
 
     return (
         <div className={isAuthRoute ? 'ep-app ep-app-auth' : 'ep-app'}>
@@ -245,7 +230,7 @@ export default function Layout({ title, children }) {
                                                 justifyContent: 'center',
                                             }}
                                         >
-                                            {unreadNotifications}
+                                            {unreadBadgeLabel}
                                         </span>
                                     )}
                                 </button>
@@ -427,7 +412,7 @@ export default function Layout({ title, children }) {
                                         justifyContent: 'center',
                                     }}
                                 >
-                                    {unreadNotifications}
+                                    {unreadBadgeLabel}
                                 </span>
                             )}
                         </button>

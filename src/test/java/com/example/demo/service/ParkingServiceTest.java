@@ -9,6 +9,7 @@ import com.example.demo.model.ParkingRating;
 import com.example.demo.repository.BookingRepository;
 import com.example.demo.repository.ParkingRepository;
 import com.example.demo.repository.ParkingRatingRepository;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,9 @@ class ParkingServiceTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private ParkingService parkingService;

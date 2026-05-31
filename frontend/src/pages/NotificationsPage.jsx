@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/layout/layout'
 import { getCurrentUser } from '../services/session'
-import { getMyNotifications, markAllNotificationsRead, clearNotifications, notifyNotificationsChanged } from '../services/notifications'
+import {
+    getMyNotifications,
+    markAllNotificationsRead,
+    clearNotifications,
+    notifyNotificationsChanged,
+    subscribeNotificationReceived,
+} from '../services/notifications'
 
 const formatDate = (iso) => {
     try {
@@ -34,7 +40,7 @@ export default function NotificationsPage() {
                 setNotifications(list)
                 await markAllNotificationsRead()
                 notifyNotificationsChanged()
-            } catch (e) {
+            } catch {
                 setError('Failed to load notifications. Please try again.')
             } finally {
                 setLoading(false)
@@ -42,6 +48,25 @@ export default function NotificationsPage() {
         }
 
         loadNotifications()
+    }, [user?.id])
+
+    // Real-time: while the page is open, prepend newly arrived notifications and
+    // keep them read (the panel is open) so the badge stays at 0.
+    useEffect(() => {
+        if (!user?.id) return
+        const unsubscribe = subscribeNotificationReceived((incoming) => {
+            if (!incoming) return
+            setNotifications((prev) => {
+                if (prev.some((n) => n.id === incoming.id)) return prev
+                return [{ ...incoming, read: true }, ...prev]
+            })
+            // Persist the read state for the just-arrived notification and let the
+            // badge drop back to 0 in real time.
+            markAllNotificationsRead()
+                .then(() => notifyNotificationsChanged())
+                .catch(() => {})
+        })
+        return unsubscribe
     }, [user?.id])
 
     const handleClear = async () => {
@@ -52,7 +77,7 @@ export default function NotificationsPage() {
             await clearNotifications()
             setNotifications([])
             notifyNotificationsChanged()
-        } catch (e) {
+        } catch {
             setError('Failed to clear notifications. Please try again.')
         } finally {
             setClearLoading(false)
@@ -88,7 +113,7 @@ export default function NotificationsPage() {
             ) : (
                 <div style={{ marginTop: 24, display: 'grid', gap: 14 }}>
                     {notifications.map((item) => (
-                        <div key={item.id} style={{ borderRadius: 18, background: item.isRead ? '#f8fafc' : '#eff6ff', border: '1px solid #e2e8f0', padding: 18 }}>
+                        <div key={item.id} style={{ borderRadius: 18, background: item.read ? '#f8fafc' : '#eff6ff', border: '1px solid #e2e8f0', padding: 18 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
                                 <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{item.title}</div>
                                 <div style={{ fontSize: 13, color: '#64748b' }}>{formatDate(item.createdAt)}</div>

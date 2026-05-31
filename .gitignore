@@ -42,3 +42,5 @@ data/*.trace.db
 .env
 .env.*
 !.env.example
+frontend.zip
+src.zip

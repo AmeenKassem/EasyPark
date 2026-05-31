@@ -72,8 +72,8 @@ public class RatingService {
         // Create notification for the driver
         notificationService.createNotification(
             driver.getId(),
-            "New Rating Received",
-            "You received a " + score + " star rating from a parking owner."
+            "New Rating",
+            "You received a " + score + "-star rating from a parking owner."
         );
     }
 }
