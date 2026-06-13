@@ -97,7 +97,6 @@ function IconSliders({ size = 18 }) {
         </svg>
     )
 }
-// AI Icon
 function IconSparkles({ size = 18 }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -145,10 +144,14 @@ export default function DriverPage() {
     const [coveredOnly, setCoveredOnly] = useState(false)
     const [maxPrice, setMaxPrice] = useState('')
 
-    // AI Search States
+    // AI Chat States
     const [aiSearchOpen, setAiSearchOpen] = useState(false)
     const [aiQuery, setAiQuery] = useState('')
     const [aiLoading, setAiLoading] = useState(false)
+    const [chatHistory, setChatHistory] = useState([
+        { role: 'ai', text: "Hello! I'm your AI Assistant. Let me know where and when you need a parking spot." }
+    ]);
+    const chatEndRef = useRef(null);
 
     const [filterDate, setFilterDate] = useState('')
     const [filterStart, setFilterStart] = useState('')
@@ -182,6 +185,12 @@ export default function DriverPage() {
     const profileBtnRef = useRef(null)
     const [profileMenuPos, setProfileMenuPos] = useState({ top: 0, left: 0 })
     const [isProfileModalOpen, setProfileModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (aiSearchOpen && chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [chatHistory, aiSearchOpen]);
 
     useEffect(() => {
         if (!filterDate) {
@@ -374,49 +383,63 @@ export default function DriverPage() {
         }, 250)
     }
 
-    // --- AI Search Execution ---
+    // --- AI Chat Execution ---
     const executeAiSearch = async () => {
-            if (!aiQuery.trim()) return;
-            setAiLoading(true);
-            try {
-                const response = await axios.post(`${API_BASE_URL}/api/parking-spots/ai-search`,
-                    { query: aiQuery },
-                    { headers: { Authorization: `Bearer ${localStorage.getItem('easypark_token')}` } }
-                );
+        const queryText = aiQuery.trim();
+        if (!queryText) return;
 
-                if (response.data) {
-                    const filters = response.data;
+        setAiLoading(true);
+        setChatHistory(prev => [...prev, { role: 'user', text: queryText }]);
+        setAiQuery('');
 
-                    // 1. Apply boolean and numeric filters
-                    if (filters.coveredOnly === true) setCoveredOnly(true);
-                    if (filters.maxPrice) setMaxPrice(filters.maxPrice);
+        setChatHistory(prev => [...prev, { role: 'ai', text: 'Searching the map for you...', id: 'loading' }]);
 
-                    // 2. Apply Date and Time filters
-                    if (filters.date) setFilterDate(filters.date);
-                    if (filters.startTime) setFilterStart(filters.startTime);
-                    if (filters.endTime) setFilterEnd(filters.endTime);
+        try {
+            const response = await axios.post(`${API_BASE_URL}/api/parking-spots/ai-search`,
+                { query: queryText },
+                { headers: { Authorization: `Bearer ${localStorage.getItem('easypark_token')}` } }
+            );
 
-                    // 3. Apply location and trigger Google Maps Geocoding
-                    if (filters.location) {
-                        setAddress(filters.location);
-                        try {
-                            const place = await fetchFirstPredictionDetails(filters.location);
-                            handlePlaceSelect(place);
-                        } catch (err) {
-                            console.warn('AI Google Maps fallback failed', err);
-                        }
+            if (response.data) {
+                const filters = response.data;
+
+                setCoveredOnly(filters.coveredOnly === true);
+                setMaxPrice(filters.maxPrice || '');
+                setFilterDate(filters.date || '');
+                setFilterStart(filters.startTime || '');
+                setFilterEnd(filters.endTime || '');
+
+                if (filters.location) {
+                    setAddress(filters.location);
+                    try {
+                        const place = await fetchFirstPredictionDetails(filters.location);
+                        handlePlaceSelect(place);
+                    } catch (err) {
+                        console.warn('AI Google Maps fallback failed', err);
                     }
-
-                    setAiSearchOpen(false);
-                    setAiQuery('');
+                } else {
+                    setAddress('');
+                    setSearchBounds(null);
                 }
-            } catch (error) {
-                console.error("AI Search failed", error);
-                alert("AI Search failed. Please try again later.");
-            } finally {
-                setAiLoading(false);
-            }
 
+                setChatHistory(prev => prev.filter(msg => msg.id !== 'loading').concat({
+                    role: 'ai',
+                    text: "Done! I've updated the map and filters. Opening the results list now..."
+                }));
+
+                setTimeout(() => {
+                    setSpotsListOpen(true);
+                }, 1000);
+            }
+        } catch (error) {
+            console.error("AI Search failed", error);
+            setChatHistory(prev => prev.filter(msg => msg.id !== 'loading').concat({
+                role: 'ai',
+                text: 'Oops, something went wrong with the search. Please try again.'
+            }));
+        } finally {
+            setAiLoading(false);
+        }
     };
 
     const handleReset = () => {
@@ -501,7 +524,6 @@ export default function DriverPage() {
                     </button>
                 </div>
 
-                {/* Search bar with AI Button */}
                 <div style={{ position: 'absolute', top: 74, left: 12, right: 12, pointerEvents: 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 999, background: 'rgba(255,255,255,0.96)', boxShadow: '0 14px 40px rgba(15, 23, 42, 0.14)' }}>
                         <button type="button" onClick={handleSearchClick} aria-label="Search" style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: '#94a3b8' }}>
@@ -512,9 +534,28 @@ export default function DriverPage() {
                                 <input ref={inputRef} value={address} onChange={(e) => { setAddress(e.target.value); if (e.target.value === '') setSearchBounds(null) }} onKeyDown={handleInputKeyDown} placeholder="Search location..." autoComplete="off" style={{ width: '100%', border: 0, outline: 'none', fontSize: 16, background: 'transparent', color: '#0f172a' }} />
                             </Autocomplete>
                         </div>
-                        {/* AI Search Button */}
-                        <button type="button" onClick={() => setAiSearchOpen(true)} aria-label="AI Search" style={{ width: 40, height: 40, borderRadius: 999, border: 0, background: 'linear-gradient(135deg, #6366f1, #a855f7)', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'white', boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)' }}>
-                            <IconSparkles size={18} />
+                        <button
+                            type="button"
+                            onClick={() => setAiSearchOpen(true)}
+                            aria-label="AI Search"
+                            style={{
+                                height: 40,
+                                padding: '0 16px',
+                                borderRadius: 999,
+                                border: 0,
+                                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                color: 'white',
+                                boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)',
+                                fontWeight: 'bold',
+                                fontSize: '14px'
+                            }}
+                        >
+                            <IconSparkles size={16} />
+                            <span>AI</span>
                         </button>
                         <button type="button" onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 40, height: 40, borderRadius: 999, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: '#2563eb' }}>
                             <IconSliders size={18} />
@@ -528,33 +569,62 @@ export default function DriverPage() {
                     </button>
                 </div>
 
-                {/* AI Search Modal */}
+                {/* AI Chat Modal */}
                 {aiSearchOpen && (
                     <div style={{ position: 'absolute', inset: 0, zIndex: 20000, pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                         <button type="button" onClick={() => setAiSearchOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.6)', border: 0 }} />
-                        <div style={{ position: 'relative', width: '100%', maxWidth: '400px', background: '#ffffff', borderRadius: '20px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                        <div style={{ position: 'relative', width: '100%', maxWidth: '450px', height: '80vh', maxHeight: '600px', background: '#ffffff', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+
+                            {/* Header */}
+                            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc' }}>
                                 <div style={{ color: '#8b5cf6' }}><IconSparkles size={24} /></div>
-                                <div style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b' }}>Ask AI</div>
+                                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>EasyPark AI</div>
                                 <button type="button" onClick={() => setAiSearchOpen(false)} style={{ marginLeft: 'auto', border: 0, background: 'transparent', fontSize: '24px', cursor: 'pointer', color: '#94a3b8', padding: 0, lineHeight: 1 }}>&times;</button>
                             </div>
 
-                            <textarea
-                                value={aiQuery}
-                                onChange={(e) => setAiQuery(e.target.value)}
-                                placeholder="Example: I am looking for covered parking in Tel Aviv for tomorrow morning for two hours, up to 20 shekels..."
-                                rows={4}
-                                style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', fontSize: '15px', outline: 'none', resize: 'none', fontFamily: 'inherit', marginBottom: '16px' }}
-                            />
+                            {/* Chat History */}
+                            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', background: '#fff' }}>
+                                {chatHistory.map((msg, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                                        <div style={{
+                                            maxWidth: '85%',
+                                            padding: '12px 16px',
+                                            fontSize: '15px',
+                                            lineHeight: '1.4',
+                                            backgroundColor: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
+                                            color: msg.role === 'user' ? '#fff' : '#1e293b',
+                                            borderTopLeftRadius: '16px',
+                                            borderTopRightRadius: '16px',
+                                            borderBottomLeftRadius: msg.role === 'ai' ? '4px' : '16px',
+                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '16px',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                        }}>
+                                            {msg.text}
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={chatEndRef} />
+                            </div>
 
-                            <button
-                                type="button"
-                                onClick={executeAiSearch}
-                                disabled={aiLoading || !aiQuery.trim()}
-                                style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', cursor: aiLoading || !aiQuery.trim() ? 'not-allowed' : 'pointer', opacity: aiLoading || !aiQuery.trim() ? 0.7 : 1, transition: 'opacity 0.2s' }}
-                            >
-                                {aiLoading ? 'Searching...' : 'Search with AI'}
-                            </button>
+                            {/* Input Area */}
+                            <div style={{ padding: '16px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', gap: '10px' }}>
+                                <input
+                                    type="text"
+                                    value={aiQuery}
+                                    onChange={(e) => setAiQuery(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') executeAiSearch(); }}
+                                    placeholder="Type your parking request..."
+                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '999px', padding: '0 16px', fontSize: '15px', outline: 'none', height: '44px' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={executeAiSearch}
+                                    disabled={aiLoading || !aiQuery.trim()}
+                                    style={{ width: '44px', height: '44px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: aiLoading || !aiQuery.trim() ? 'not-allowed' : 'pointer', opacity: aiLoading || !aiQuery.trim() ? 0.7 : 1 }}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
